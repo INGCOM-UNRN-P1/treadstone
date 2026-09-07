@@ -1,0 +1,10 @@
+build/
+*.o
+*.a
+*.d
+*.bin
+programa
+test_bin
+.vscode/
+.idea/
+.DS_Store

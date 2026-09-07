@@ -1,0 +1,22 @@
+{
+  "name": "p1_test",
+  "version": "1.0.0",
+  "repository": "https://github.com/INGCOM-UNRN-P1/plantilla-libreria.git",
+  "build": {
+    "command": "make",
+    "clean_command": "make clean"
+  },
+  "exports": {
+    "headers": [
+      {
+        "source": "include/p1_test.h",
+        "destination": "include/p1_test.h"
+      },
+      {
+        "source": "include/tda/contracts.h",
+        "destination": "include/tda/contracts.h"
+      }
+    ],
+    "binaries": []
+  }
+}

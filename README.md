@@ -48,10 +48,14 @@ Podés consultar el manual exhaustivo con ejemplos de código de cada aserción 
 
 ## 📁 Estructura del Repositorio
 
-* **`include/p1_test.h`**: Cabecera completa del framework.
+* **`include/p1_test.h`**: Cabecera principal del framework básico y orquestador.
+* **`include/p1_arrays.h`**: Aserciones avanzadas de arreglos (ordenamiento, doubles, arreglos de strings y contención).
+* **`include/p1_files.h`**: Aserciones de sistema de archivos (existencia, comparación línea a línea, búsqueda de texto y comparación binaria).
+* **`include/p1_stdio.h`**: Captura bidireccional y mocks de streams (`stdout`, `stderr` y simulación interactiva de `stdin`).
 * **`docs/manual_uso.md`**: Manual de uso completo y referencia de la API.
 * **`tests/`**: Pruebas de autoverificación del propio framework:
-  * `test_p1_test.c`: Verifica las 20 mejoras QoL, aserciones tipadas, hooks y CLI.
+  * `test_p1_test.c`: Verifica el núcleo, aserciones tipadas, hooks y CLI.
+  * `test_p1_advanced.c`: Verifica las cabeceras modulares `p1_arrays.h`, `p1_files.h` y `p1_stdio.h`.
   * `test_p1_failures.c`: Verifica el formato y diagnóstico de fallos de aserción.
   * `test_p1_signals.c`: Verifica la recuperación ante `SIGSEGV` y `SIGFPE`.
 * **`ejemplos/proyecto_tp/`**: Proyecto completo de ejemplo basado en `plantilla-TP`, con `tp.sh`, `Makefile` y `ejercicios/ejercicio1` probado con `p1_test`.

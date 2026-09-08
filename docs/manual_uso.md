@@ -250,3 +250,34 @@ El gestor `./tp.sh` del Trabajo Práctico incluye soporte nativo para `p1_test`:
   ./tp.sh memcheck
   ./tp.sh memcheck ejercicio1
   ```
+
+---
+
+## 8. Cabeceras Modulares Avanzadas
+
+Para mantener el núcleo ligero, las aserciones avanzadas se distribuyen en cabeceras especializadas:
+
+### 8.1. `p1_arrays.h` — Vectores, Ordenamiento y Listas
+Incluye validación avanzada de colecciones:
+* `ASSERT_ARRAY_INT_SORTED_ASC(arr, len)`: Comprueba orden no decreciente.
+* `ASSERT_ARRAY_INT_SORTED_DESC(arr, len)`: Comprueba orden no creciente.
+* `ASSERT_ARRAY_DOUBLE_EQ(exp, act, len, eps)`: Compara arreglos reales con tolerancia.
+* `ASSERT_STR_ARRAY_EQ(exp, act)`: Compara arreglos de strings terminados en `NULL` (`char*[]`).
+* `ASSERT_ARRAY_INT_CONTAINS(arr, len, val)`: Verifica presencia de un elemento.
+* `ASSERT_ARRAY_INT_NOT_CONTAINS(arr, len, val)`: Verifica ausencia de un elemento.
+
+### 8.2. `p1_files.h` — Archivos de Texto y Binarios
+Validación de persistencia y archivos en disco:
+* `ASSERT_FILE_EXISTS("ruta/archivo.txt")`: Comprueba existencia y lectura.
+* `ASSERT_FILE_NOT_EXISTS("ruta/archivo.txt")`: Comprueba ausencia.
+* `ASSERT_FILE_EQ("esperado.txt", "obtenido.txt")`: Comparación línea a línea indicando la primera diferencia.
+* `ASSERT_FILE_CONTAINS("salida.log", "PALABRA_CLAVE")`: Búsqueda de contenido en archivo.
+* `ASSERT_FILE_BINARY_EQ("exp.bin", "act.bin")`: Comparación binaria byte a byte con volcado hexadecimal.
+
+### 8.3. `p1_stdio.h` — Mocks y Simulación de Entrada/Salida
+Pruebas para funciones interactivas de consola:
+* `ASSERT_STDIO_EQ(funcion_interactiva(), "entrada\n", "salida esperada\n")`: Simula `stdin`, captura `stdout` y evalúa en un solo paso.
+* `p1_mock_stdin_feed("10 20\n")` y `p1_mock_stdin_restore()`: Inyección directa para `scanf` / `fgets`.
+* `ASSERT_STDIN_CONSUMED()`: Valida que la función haya procesado toda la entrada provista (llegó a `EOF`).
+* `ASSERT_STDERR_EQ(llamada(), "mensaje error")`: Captura y verificación de `stderr`.
+

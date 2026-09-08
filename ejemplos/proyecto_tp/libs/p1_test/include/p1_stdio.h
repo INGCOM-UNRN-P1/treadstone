@@ -32,6 +32,33 @@ typedef struct {
 
 static _p1_stdio_state_t _p1_stdio_ctx = {-1, NULL, -1, NULL, -1, NULL};
 
+static inline void p1_mock_stdin_restore(void);
+
+static inline void _p1_stdio_emergency_cleanup(void) {
+    p1_mock_stdin_restore();
+    if (_p1_stdio_ctx.saved_stdout_fd >= 0) {
+        fflush(stdout);
+        dup2(_p1_stdio_ctx.saved_stdout_fd, fileno(stdout));
+        close(_p1_stdio_ctx.saved_stdout_fd);
+        _p1_stdio_ctx.saved_stdout_fd = -1;
+    }
+    if (_p1_stdio_ctx.capture_stdout_file != NULL) {
+        fclose(_p1_stdio_ctx.capture_stdout_file);
+        _p1_stdio_ctx.capture_stdout_file = NULL;
+    }
+    if (_p1_stdio_ctx.saved_stderr_fd >= 0) {
+        fflush(stderr);
+        dup2(_p1_stdio_ctx.saved_stderr_fd, fileno(stderr));
+        close(_p1_stdio_ctx.saved_stderr_fd);
+        _p1_stdio_ctx.saved_stderr_fd = -1;
+    }
+    if (_p1_stdio_ctx.capture_stderr_file != NULL) {
+        fclose(_p1_stdio_ctx.capture_stderr_file);
+        _p1_stdio_ctx.capture_stderr_file = NULL;
+    }
+    _p1_global_state.cleanup_hook = NULL;
+}
+
 /* --- Gestión de Mock de stdin --- */
 
 static inline void p1_mock_stdin_feed(const char *input_str) {
@@ -53,6 +80,7 @@ static inline void p1_mock_stdin_feed(const char *input_str) {
         rewind(_p1_stdio_ctx.mock_stdin_file);
         dup2(fileno(_p1_stdio_ctx.mock_stdin_file), fileno(stdin));
     }
+    _p1_global_state.cleanup_hook = _p1_stdio_emergency_cleanup;
 }
 
 static inline void p1_mock_stdin_restore(void) {
@@ -64,6 +92,9 @@ static inline void p1_mock_stdin_restore(void) {
     if (_p1_stdio_ctx.mock_stdin_file != NULL) {
         fclose(_p1_stdio_ctx.mock_stdin_file);
         _p1_stdio_ctx.mock_stdin_file = NULL;
+    }
+    if (_p1_stdio_ctx.saved_stdin_fd < 0 && _p1_stdio_ctx.saved_stdout_fd < 0 && _p1_stdio_ctx.saved_stderr_fd < 0) {
+        _p1_global_state.cleanup_hook = NULL;
     }
 }
 
@@ -85,6 +116,7 @@ static inline void p1_capture_stdout_begin(void) {
     if (_p1_stdio_ctx.capture_stdout_file != NULL && _p1_stdio_ctx.saved_stdout_fd >= 0) {
         dup2(fileno(_p1_stdio_ctx.capture_stdout_file), fileno(stdout));
     }
+    _p1_global_state.cleanup_hook = _p1_stdio_emergency_cleanup;
 }
 
 static inline void p1_capture_stdout_end(char *buf, size_t max_len) {
@@ -102,6 +134,9 @@ static inline void p1_capture_stdout_end(char *buf, size_t max_len) {
         buf[n] = '\0';
         fclose(_p1_stdio_ctx.capture_stdout_file);
         _p1_stdio_ctx.capture_stdout_file = NULL;
+    }
+    if (_p1_stdio_ctx.saved_stdin_fd < 0 && _p1_stdio_ctx.saved_stdout_fd < 0 && _p1_stdio_ctx.saved_stderr_fd < 0) {
+        _p1_global_state.cleanup_hook = NULL;
     }
 }
 
@@ -123,6 +158,7 @@ static inline void p1_capture_stderr_begin(void) {
     if (_p1_stdio_ctx.capture_stderr_file != NULL && _p1_stdio_ctx.saved_stderr_fd >= 0) {
         dup2(fileno(_p1_stdio_ctx.capture_stderr_file), fileno(stderr));
     }
+    _p1_global_state.cleanup_hook = _p1_stdio_emergency_cleanup;
 }
 
 static inline void p1_capture_stderr_end(char *buf, size_t max_len) {
@@ -140,6 +176,9 @@ static inline void p1_capture_stderr_end(char *buf, size_t max_len) {
         buf[n] = '\0';
         fclose(_p1_stdio_ctx.capture_stderr_file);
         _p1_stdio_ctx.capture_stderr_file = NULL;
+    }
+    if (_p1_stdio_ctx.saved_stdin_fd < 0 && _p1_stdio_ctx.saved_stdout_fd < 0 && _p1_stdio_ctx.saved_stderr_fd < 0) {
+        _p1_global_state.cleanup_hook = NULL;
     }
 }
 

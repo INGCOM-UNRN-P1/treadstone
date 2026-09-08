@@ -18,6 +18,21 @@ extern "C" {
 
 /* --- Funciones auxiliares internas para arreglos ------------------------- */
 
+static inline void _p1_fail_array_null(const char *file, int line, const char *expr,
+                                       const char *arg_name, const char *fmt, ...) {
+    _p1_print_fail_header(file, line, expr);
+    if (!_p1_global_state.quiet_mode) {
+        fprintf(stderr, "    puntero nulo inesperado en argumento '%s' con longitud > 0\n", arg_name);
+    }
+    if (fmt != NULL) {
+        va_list args;
+        va_start(args, fmt);
+        _p1_print_user_msg(fmt, args);
+        va_end(args);
+    }
+    _p1_trigger_failure();
+}
+
 static inline void _p1_fail_array_double(const char *file, int line, const char *expr,
                                          size_t index, double expected, double actual,
                                          double diff, double eps, const char *fmt, ...) {
@@ -104,13 +119,22 @@ static inline void _p1_fail_array_contains(const char *file, int line, const cha
     size_t _len = (size_t)(length); \
     const int *_aexp = (const int *)(expected); \
     const int *_aact = (const int *)(actual); \
-    for (size_t _i = 0; _i < _len; _i++) { \
+    if (_len == 0) { \
         _p1_global_state.asserts_total++; \
-        if (_aexp[_i] != _aact[_i]) { \
-            _p1_fail_array_int(__FILE__, __LINE__, \
-                               "ASSERT_ARRAY_INT_EQ(" #expected ", " #actual ", " #length ")", \
-                               _i, (long long)_aexp[_i], (long long)_aact[_i], __VA_ARGS__); \
-            break; \
+    } else if (_aexp == NULL || _aact == NULL) { \
+        _p1_global_state.asserts_total++; \
+        _p1_fail_array_null(__FILE__, __LINE__, \
+                            "ASSERT_ARRAY_INT_EQ(" #expected ", " #actual ", " #length ")", \
+                            _aexp == NULL ? #expected : #actual, __VA_ARGS__); \
+    } else { \
+        for (size_t _i = 0; _i < _len; _i++) { \
+            _p1_global_state.asserts_total++; \
+            if (_aexp[_i] != _aact[_i]) { \
+                _p1_fail_array_int(__FILE__, __LINE__, \
+                                   "ASSERT_ARRAY_INT_EQ(" #expected ", " #actual ", " #length ")", \
+                                   _i, (long long)_aexp[_i], (long long)_aact[_i], __VA_ARGS__); \
+                break; \
+            } \
         } \
     } \
 } while (0)
@@ -124,7 +148,14 @@ static inline void _p1_fail_array_contains(const char *file, int line, const cha
 #define ASSERT_ARRAY_INT_SORTED_ASC_MSG(arr, length, ...) do { \
     size_t _len = (size_t)(length); \
     const int *_a = (const int *)(arr); \
-    if (_len > 1 && _a != NULL) { \
+    if (_len <= 1) { \
+        _p1_global_state.asserts_total++; \
+    } else if (_a == NULL) { \
+        _p1_global_state.asserts_total++; \
+        _p1_fail_array_null(__FILE__, __LINE__, \
+                            "ASSERT_ARRAY_INT_SORTED_ASC(" #arr ", " #length ")", \
+                            #arr, __VA_ARGS__); \
+    } else { \
         for (size_t _i = 0; _i < _len - 1; _i++) { \
             _p1_global_state.asserts_total++; \
             if (_a[_i] > _a[_i + 1]) { \
@@ -145,7 +176,14 @@ static inline void _p1_fail_array_contains(const char *file, int line, const cha
 #define ASSERT_ARRAY_INT_SORTED_DESC_MSG(arr, length, ...) do { \
     size_t _len = (size_t)(length); \
     const int *_a = (const int *)(arr); \
-    if (_len > 1 && _a != NULL) { \
+    if (_len <= 1) { \
+        _p1_global_state.asserts_total++; \
+    } else if (_a == NULL) { \
+        _p1_global_state.asserts_total++; \
+        _p1_fail_array_null(__FILE__, __LINE__, \
+                            "ASSERT_ARRAY_INT_SORTED_DESC(" #arr ", " #length ")", \
+                            #arr, __VA_ARGS__); \
+    } else { \
         for (size_t _i = 0; _i < _len - 1; _i++) { \
             _p1_global_state.asserts_total++; \
             if (_a[_i] < _a[_i + 1]) { \
@@ -168,14 +206,23 @@ static inline void _p1_fail_array_contains(const char *file, int line, const cha
     const double *_dexp = (const double *)(expected); \
     const double *_dact = (const double *)(actual); \
     double _eps = (double)(epsilon); \
-    for (size_t _i = 0; _i < _len; _i++) { \
+    if (_len == 0) { \
         _p1_global_state.asserts_total++; \
-        double _diff = _p1_abs_double(_dexp[_i] - _dact[_i]); \
-        if (_diff > _eps) { \
-            _p1_fail_array_double(__FILE__, __LINE__, \
-                                  "ASSERT_ARRAY_DOUBLE_EQ(" #expected ", " #actual ", " #length ", " #epsilon ")", \
-                                  _i, _dexp[_i], _dact[_i], _diff, _eps, __VA_ARGS__); \
-            break; \
+    } else if (_dexp == NULL || _dact == NULL) { \
+        _p1_global_state.asserts_total++; \
+        _p1_fail_array_null(__FILE__, __LINE__, \
+                            "ASSERT_ARRAY_DOUBLE_EQ(" #expected ", " #actual ", " #length ", " #epsilon ")", \
+                            _dexp == NULL ? #expected : #actual, __VA_ARGS__); \
+    } else { \
+        for (size_t _i = 0; _i < _len; _i++) { \
+            _p1_global_state.asserts_total++; \
+            double _diff = _p1_abs_double(_dexp[_i] - _dact[_i]); \
+            if (_diff > _eps) { \
+                _p1_fail_array_double(__FILE__, __LINE__, \
+                                      "ASSERT_ARRAY_DOUBLE_EQ(" #expected ", " #actual ", " #length ", " #epsilon ")", \
+                                      _i, _dexp[_i], _dact[_i], _diff, _eps, __VA_ARGS__); \
+                break; \
+            } \
         } \
     } \
 } while (0)

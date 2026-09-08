@@ -101,6 +101,7 @@ typedef struct {
     /* Hooks */
     p1_hook_fn_t before_each;       /**< Setup antes de cada test */
     p1_hook_fn_t after_each;        /**< Teardown después de cada test */
+    p1_hook_fn_t cleanup_hook;      /**< Hook de limpieza automática (descriptores, mocks) */
 
     /* Control de flujo no local estándar C99 */
     jmp_buf jump_env;
@@ -497,6 +498,21 @@ static inline void _p1_capture_stdout_finish(char *out_buf, size_t max_buf) {
 }
 #endif
 
+static inline void _p1_emergency_capture_cleanup(void) {
+#if _P1_HAS_POSIX
+    if (_p1_capture_state.saved_stdout >= 0) {
+        fflush(stdout);
+        dup2(_p1_capture_state.saved_stdout, fileno(stdout));
+        close(_p1_capture_state.saved_stdout);
+        _p1_capture_state.saved_stdout = -1;
+    }
+    if (_p1_capture_state.tmp_file != NULL) {
+        fclose(_p1_capture_state.tmp_file);
+        _p1_capture_state.tmp_file = NULL;
+    }
+#endif
+}
+
 /* --- Parser de argumentos CLI y configuración ---------------------------- */
 
 static inline void _p1_parse_args(int argc, char **argv) {
@@ -665,6 +681,11 @@ static inline void _p1_parse_args(int argc, char **argv) {
         _p1_jump_res = _p1_setjmp_val; \
     } \
     _P1_RESTORE_SIGNALS(_p1_prev_segv, _p1_prev_fpe, _p1_prev_alrm); \
+    if (_p1_global_state.cleanup_hook != NULL) { \
+        _p1_global_state.cleanup_hook(); \
+        _p1_global_state.cleanup_hook = NULL; \
+    } \
+    _p1_emergency_capture_cleanup(); \
     clock_t _p1_end_t = clock(); \
     _p1_global_state.current_elapsed_ms = ((double)(_p1_end_t - _p1_start_t) / (double)CLOCKS_PER_SEC) * 1000.0; \
     if (_p1_global_state.after_each != NULL) { \

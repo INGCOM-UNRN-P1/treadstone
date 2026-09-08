@@ -51,6 +51,15 @@ test: librerias
 		fi; \
 	done
 
+memcheck: librerias
+	@echo "Ejecutando verificación con Valgrind en ejercicios..."
+	@for dir in $(EX_DIRS); do \
+		if [ -f $$dir/Makefile ]; then \
+			echo "--- Memcheck en $$dir ---"; \
+			$(MAKE) -C $$dir memcheck || exit 1; \
+		fi; \
+	done
+
 clean:
 	@echo "Limpiando todos los ejecutables, librerías estáticas y archivos objeto..."
 	@for dir in $(LIB_DIRS) $(EX_DIRS); do \

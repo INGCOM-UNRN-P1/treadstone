@@ -57,6 +57,12 @@ test: $(TEST_TARGET)
 	@echo "Ejecutando pruebas"
 	./$(TEST_TARGET)
 
+# Ejecutar pruebas con Valgrind
+.PHONY: memcheck
+memcheck: $(TEST_TARGET)
+	@echo "Ejecutando pruebas con Valgrind"
+	valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ./$(TEST_TARGET)
+
 # Limpiar archivos objeto y ejecutables
 .PHONY: clean
 clean:

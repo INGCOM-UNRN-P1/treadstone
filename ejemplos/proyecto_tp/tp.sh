@@ -31,9 +31,11 @@ mostrar_ayuda() {
     echo -e "  ${VERDE}list${NC}                            Lista todas las librerías y ejercicios instalados."
     echo -e "  ${VERDE}build${NC}                           Compila todo el proyecto."
     echo -e "  ${VERDE}run [ejercicio]${NC}                 Ejecuta un ejercicio en particular o todos si no indicás nada."
-    echo -e "  ${VERDE}test [nombre]${NC}                   Ejecuta los tests de un ejercicio o librería específica,"
-    echo -e "                                    o de todo el proyecto si no indicás nada."
-    echo -e "  ${VERDE}ripley [modulo]${NC}                 Audita con el motor Ripley (análisis AST, reglas P1 y"
+    echo -e "  ${VERDE}test [nombre]${NC}                   Ejecuta los tests de un ejercicio o librería específica,
+                                    o de todo el proyecto si no indicás nada.
+  ${VERDE}add-test <ejercicio> [nombre]${NC}   Genera un nuevo archivo de pruebas unitarias con p1_test.h.
+  ${VERDE}memcheck [ejercicio]${NC}            Ejecuta verificación de memoria con Valgrind en los tests.
+  ${VERDE}ripley [modulo]${NC}                 Audita con el motor Ripley (análisis AST, reglas P1 y"
     echo -e "                                    AddressSanitizer) un ejercicio, librería o archivo .c,"
     echo -e "                                    o todo el proyecto si no indicás nada."
     echo -e "  ${VERDE}help${NC}                            Muestra este mensaje de ayuda."
@@ -671,6 +673,66 @@ ripley_project() {
     fi
 }
 
+# Agregar nuevo archivo de test con esqueleto p1_test
+add_test() {
+    if [ -z "${1:-}" ]; then
+        echo -e "${ROJO}Error: Falta indicar el ejercicio.${NC}"
+        echo "Uso: ./tp.sh add-test <ejercicio> [nombre_test]"
+        exit 1
+    fi
+    local ex_nombre="$1"
+    local test_nombre="${2:-prueba}"
+    local destino="$EX_DIR/$ex_nombre"
+
+    if [ ! -d "$destino" ]; then
+        echo -e "${ROJO}Error: El ejercicio '$ex_nombre' no existe en '$destino'.${NC}"
+        exit 1
+    fi
+
+    local archivo="$destino/${test_nombre}.c"
+    if [ -f "$archivo" ]; then
+        echo -e "${AMARILLO}El archivo de pruebas '$archivo' ya existe.${NC}"
+        exit 1
+    fi
+
+    cat << 'EOF' > "$archivo"
+/**
+ * @file prueba.c
+ * @brief Suite de pruebas unitarias generada con p1_test.
+ */
+
+#include <stdio.h>
+#include "p1_test.h"
+
+TEST(primer_caso_de_prueba) {
+    ASSERT_TRUE(1 == 1);
+}
+
+int main(int argc, char **argv) {
+    TEST_SUITE_BEGIN_ARGS("Suite de Pruebas", argc, argv);
+    RUN_TEST(primer_caso_de_prueba);
+    return TEST_REPORT();
+}
+EOF
+    echo -e "${VERDE}Archivo de pruebas creado con éxito en: $archivo${NC}"
+}
+
+# Verificación de memoria con Valgrind
+memcheck_project() {
+    echo -e "${AZUL}Ejecutando verificación con Valgrind en los tests...${NC}"
+    if [ -n "${1:-}" ]; then
+        local destino="$EX_DIR/$1"
+        if [ -d "$destino" ] && [ -f "$destino/Makefile" ]; then
+            make -C "$destino" memcheck
+        else
+            echo -e "${ROJO}Error: Ejercicio '$1' no encontrado o sin Makefile.${NC}"
+            exit 1
+        fi
+    else
+        make memcheck
+    fi
+}
+
 # Parsear comandos principales
 if [ $# -lt 1 ]; then
     mostrar_ayuda
@@ -707,6 +769,12 @@ case "$cmd" in
         ;;
     test)
         test_project "$@"
+        ;;
+    add-test)
+        add_test "$@"
+        ;;
+    memcheck)
+        memcheck_project "$@"
         ;;
     ripley)
         ripley_project "$@"

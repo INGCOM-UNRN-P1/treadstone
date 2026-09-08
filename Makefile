@@ -9,7 +9,7 @@ EJEMPLO_DIR = ejemplos/proyecto_tp
 TEST_SRCS = $(wildcard $(TESTS_DIR)/test_*.c)
 TEST_BINS = $(patsubst $(TESTS_DIR)/%.c, $(BUILD_DIR)/%, $(TEST_SRCS))
 
-.PHONY: all test test-ndebug test-debug test-ejemplo run-ejemplo clean
+.PHONY: all test test-ndebug test-debug test-ejemplo run-ejemplo memcheck clean
 
 all: $(TEST_BINS)
 
@@ -47,6 +47,13 @@ test-ejemplo:
 run-ejemplo:
 	@echo "=== Ejecutando programa del proyecto de ejemplo TP ==="
 	$(MAKE) -C $(EJEMPLO_DIR) run
+
+# Verificación de memoria con Valgrind (QoL 17)
+memcheck: $(BUILD_DIR)/test_p1_test
+	@echo "=== Verificando suite p1_test con Valgrind ==="
+	valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ./$(BUILD_DIR)/test_p1_test
+	@echo "=== Verificando proyecto de ejemplo con Valgrind ==="
+	$(MAKE) -C $(EJEMPLO_DIR) memcheck
 
 clean:
 	@echo "Limpiando directorio de compilación..."

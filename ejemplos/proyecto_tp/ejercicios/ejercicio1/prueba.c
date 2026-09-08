@@ -7,18 +7,20 @@
 #include "p1_test.h"
 #include "operaciones.h"
 
-/* --- Pruebas de paridad (Aserciones booleanas) --- */
+/* --- Pruebas de paridad (Aserciones booleanas y subcasos) --- */
 TEST(prueba_es_par) {
+    SUBCASE("Números pares");
     ASSERT_TRUE(es_par(0));
     ASSERT_TRUE(es_par(2));
     ASSERT_TRUE(es_par(-4));
 
+    SUBCASE("Números impares");
     ASSERT_FALSE(es_par(1));
     ASSERT_FALSE(es_par(7));
     ASSERT_FALSE(es_par(-9));
 }
 
-/* --- Pruebas de factorial (Aserciones de enteros) --- */
+/* --- Pruebas de factorial (Aserciones de enteros y rangos) --- */
 TEST(prueba_factorial) {
     ASSERT_INT_EQ(1, factorial(0));
     ASSERT_INT_EQ(1, factorial(1));
@@ -30,10 +32,10 @@ TEST(prueba_factorial) {
     /* Casos de error o bordes */
     ASSERT_INT_EQ(-1, factorial(-1));
     ASSERT_INT_LT(factorial(-5), 0);
-    ASSERT_INT_GE(factorial(4), 24);
+    ASSERT_INT_BETWEEN(factorial(4), 20, 30);
 }
 
-/* --- Pruebas de promedio (Aserciones de coma flotante y enteros) --- */
+/* --- Pruebas de promedio (Aserciones de coma flotante y tolerancia relativa) --- */
 TEST(prueba_calcular_promedio) {
     double valores[] = {10.0, 15.0, 20.0};
     double res = 0.0;
@@ -41,6 +43,7 @@ TEST(prueba_calcular_promedio) {
     int ret = calcular_promedio(valores, 3, &res);
     ASSERT_INT_EQ(0, ret);
     ASSERT_DOUBLE_EQ(15.0, res, 0.0001);
+    ASSERT_DOUBLE_NEAR_REL(15.0, res, 0.001);
 
     double un_solo_valor[] = {7.5};
     ret = calcular_promedio(un_solo_valor, 1, &res);
@@ -53,7 +56,7 @@ TEST(prueba_calcular_promedio) {
     ASSERT_INT_EQ(-1, calcular_promedio(valores, 3, NULL));
 }
 
-/* --- Pruebas de saludo (Aserciones de cadenas y punteros) --- */
+/* --- Pruebas de saludo (Aserciones de cadenas, case-insensitive y punteros) --- */
 TEST(prueba_obtener_saludo) {
     char buffer[64];
     char *ret = obtener_saludo("Matias", buffer, sizeof(buffer));
@@ -61,6 +64,7 @@ TEST(prueba_obtener_saludo) {
     ASSERT_PTR_NOT_NULL(ret);
     ASSERT_PTR_EQ(buffer, ret);
     ASSERT_STR_EQ("Hola, Matias!", buffer);
+    ASSERT_STR_CASE_EQ("hola, MATIAS!", buffer);
     ASSERT_STR_CONTAINS(buffer, "Matias");
     ASSERT_STR_NE("Hola, Juan!", buffer);
 
@@ -68,7 +72,6 @@ TEST(prueba_obtener_saludo) {
     ASSERT_PTR_NULL(obtener_saludo(NULL, buffer, sizeof(buffer)));
     ASSERT_PTR_NULL(obtener_saludo("Ana", NULL, sizeof(buffer)));
     ASSERT_PTR_NULL(obtener_saludo("Ana", buffer, 0));
-    /* Buffer insuficiente para "Hola, Ana!" (11 bytes con \0) */
     ASSERT_PTR_NULL(obtener_saludo("Ana", buffer, 5));
 }
 
@@ -87,8 +90,8 @@ TEST(prueba_buscar_elemento) {
     ASSERT_PTR_NULL(buscar_elemento(NULL, 4, 10));
 }
 
-int main(void) {
-    TEST_SUITE_BEGIN("Suite de Pruebas: Ejercicio 1");
+int main(int argc, char **argv) {
+    TEST_SUITE_BEGIN_ARGS("Suite de Pruebas: Ejercicio 1", argc, argv);
 
     RUN_TEST(prueba_es_par);
     RUN_TEST(prueba_factorial);

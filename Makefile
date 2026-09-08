@@ -11,7 +11,7 @@ TEST_BINS = $(patsubst $(TESTS_DIR)/%.c, $(BUILD_DIR)/%, $(TEST_SRCS))
 
 .PHONY: all test test-ndebug test-debug test-ejemplo run-ejemplo memcheck clean
 
-all: $(TEST_BINS)
+all: $(TEST_BINS) $(BUILD_DIR)/prueba
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -19,9 +19,12 @@ $(BUILD_DIR):
 $(BUILD_DIR)/%: $(TESTS_DIR)/%.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $< -o $@
 
+$(BUILD_DIR)/prueba: prueba.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $< -o $@
+
 # Ejecutar todas las pruebas unitarias
-test: $(TEST_BINS)
-	@set -e; for bin in $(TEST_BINS); do \
+test: $(TEST_BINS) $(BUILD_DIR)/prueba
+	@set -e; for bin in $(TEST_BINS) $(BUILD_DIR)/prueba; do \
 		echo "=== Ejecutando $$bin ==="; \
 		./$$bin; \
 	done

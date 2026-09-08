@@ -6,7 +6,11 @@ LIBRARY_NAME = lib$(LIB_NAME).a
 BUILD_DIR = build
 LIB_A = $(BUILD_DIR)/$(LIBRARY_NAME)
 
-all: $(LIBRARY_NAME) $(LIB_A)
+TEST_TARGET = test_bin
+TEST_SRCS = prueba.c
+TEST_OBJS = $(TEST_SRCS:.c=.o)
+
+all: $(LIBRARY_NAME) $(LIB_A) $(TEST_TARGET)
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -21,11 +25,25 @@ $(LIBRARY_NAME):
 $(LIB_A): $(LIBRARY_NAME) | $(BUILD_DIR)
 	@cp $(LIBRARY_NAME) $(LIB_A)
 
+# Compilar ejecutable de pruebas de la librería
+$(TEST_TARGET): $(TEST_OBJS)
+	@echo "Compilando pruebas de $(LIB_NAME)..."
+	$(CC) $(CFLAGS) -I. -Iinclude -o $@ $^
+
+%.o: %.c
+	@echo "Compilando $<"
+	$(CC) $(CFLAGS) -I. -Iinclude -c $<
+
 clean:
 	@echo "Limpiando $(LIB_NAME)..."
-	rm -rf $(BUILD_DIR) $(LIBRARY_NAME) stub.o
+	rm -rf $(BUILD_DIR) $(LIBRARY_NAME) $(TEST_TARGET) *.o
 
-test:
-	@echo "$(LIB_NAME) es una librería header-only lista para ser incluida."
+test: $(TEST_TARGET)
+	@echo "Probando librería $(LIB_NAME)..."
+	./$(TEST_TARGET)
 
-.PHONY: all clean test
+memcheck: $(TEST_TARGET)
+	@echo "Verificando $(LIB_NAME) con Valgrind..."
+	valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ./$(TEST_TARGET)
+
+.PHONY: all clean test memcheck

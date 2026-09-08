@@ -1,62 +1,43 @@
-# Manual de Uso: Librería de Pruebas `p1_test`
+# Manual de Uso: Librería de Pruebas `p1_test` (v2.0.0)
 
 ## 1. Introducción y Fundamentos
 
-`p1_test` es una biblioteca de pruebas unitarias para lenguaje C (estándar C99) concebida para la cátedra de **Programación 1** de la Universidad Nacional de Río Negro (UNRN).
+`p1_test` es una biblioteca avanzada de pruebas unitarias para lenguaje C (estándar C99) desarrollada para la cátedra de **Programación 1** de la Universidad Nacional de Río Negro (UNRN).
 
-A diferencia del mecanismo estándar provisto por `<assert.h>`, `p1_test` resuelve dos problemas centrales en el desarrollo y la corrección de software:
-
-1. **Inmunidad a banderas de compilación (`DEBUG` / `NDEBUG`):** En C estándar, si se define la macro `NDEBUG` (habitual en builds de optimización o release), las llamadas a `assert()` se eliminan por completo del código compilado en el preprocesador. Con `p1_test`, todas las aserciones se evalúan de forma incondicional, independientemente de qué banderas de depuración u optimización estén activas.
-2. **Resiliencia de la Suite (No detiene el proceso):** Un `assert()` estándar de C aborta abruptamente todo el proceso del programa (`abort()` o `SIGABRT`) ante la primera falla. Esto impide conocer el estado del resto de las pruebas. `p1_test` captura el fallo mediante saltos no locales (`setjmp`/`longjmp`), finaliza únicamente el caso de prueba en curso, registra el error con diagnóstico detallado y continúa con la ejecución de las pruebas restantes para brindar un reporte consolidado.
-
----
-
-## 2. Características Técnicas
-
-* **Formato Cabecera Única (*Header-Only*):** Solo necesitás incluir `p1_test.h`. No requiere compilar archivos objeto adicionales ni lidiar con dependencias complejas.
-* **Compatibilidad Estricta:** C99 puro, compatible con `-Wall -Wextra -Werror -pedantic -std=c99`.
-* **Aserciones Tipadas y Didácticas:** Diagnósticos claros que indican archivo, línea, expresión evaluada, valor esperado y valor realmente obtenido.
-* **Soporte de Colores ANSI:** Resaltado visual en terminal (desactivable automáticamente definiendo `P1_TEST_NO_COLOR`).
-* **Integración con Makefiles y CI/CD:** La función `TEST_REPORT()` retorna `0` si todas las pruebas fueron exitosas y `1` si hubo fallos, permitiendo que `make test` corte o prosiga según corresponda.
+Resuelve de forma nativa los problemas críticos de testing en entornos académicos:
+1. **Inmunidad a Banderas de Compilación (`DEBUG` / `NDEBUG`):** A diferencia de `<assert.h>`, las aserciones no se desactivan con `-DNDEBUG` ni con ningún flag del compilador.
+2. **Resiliencia de la Suite (No detiene el proceso):** Mediante saltos no locales (`setjmp`/`longjmp`), un assert fallido aborta únicamente la prueba en curso, permitiendo que las pruebas restantes se ejecuten y entreguen un reporte consolidado.
+3. **Rescate de Señales Fatales (Segfaults y FPE):** Captura en tiempo de ejecución excepciones de hardware y memoria (`SIGSEGV`, `SIGFPE`, `SIGILL`, `SIGBUS`) evitando que un error de puntero nulo en el código del estudiante aborte abruptamente la suite completa.
+4. **Watchdog contra Bucles Infinitos:** Límite configurable de tiempo por test (`SIGALRM`), interrumpiendo automáticamente funciones colgadas en `while(1)`.
 
 ---
 
-## 3. Guía de Inicio Rápido (Quickstart)
-
-Estructura mínima de un archivo de prueba (`prueba.c`):
+## 2. Guía Rápida de Inicio (Quickstart)
 
 ```c
 #include <stdio.h>
 #include "p1_test.h"
 
-// Función simple a probar
-int sumar(int a, int b) {
-    return a + b;
+int multiplicar(int a, int b) {
+    return a * b;
 }
 
-// 1. Declarar el caso de prueba con TEST(nombre)
-TEST(suma_positivos) {
-    ASSERT_INT_EQ(5, sumar(2, 3));
-    ASSERT_INT_GT(sumar(1, 1), 0);
+TEST(prueba_multiplicacion) {
+    SUBCASE("Factores positivos");
+    ASSERT_INT_EQ(20, multiplicar(4, 5));
+
+    SUBCASE("Multiplicación por cero");
+    ASSERT_INT_EQ(0, multiplicar(10, 0));
 }
 
-TEST(suma_con_cero) {
-    ASSERT_INT_EQ(0, sumar(0, 0));
-    ASSERT_INT_EQ(7, sumar(7, 0));
-}
-
-// 2. Punto de entrada con la suite
-int main(void) {
-    TEST_SUITE_BEGIN("Suite de Prueba: Operaciones Matemáticas");
-
-    RUN_TEST(suma_positivos);
-    RUN_TEST(suma_con_cero);
-
+int main(int argc, char **argv) {
+    TEST_SUITE_BEGIN_ARGS("Suite de Demostración", argc, argv);
+    RUN_TEST(prueba_multiplicacion);
     return TEST_REPORT();
 }
 ```
 
-### Compilación y Ejecución directa
+### Compilación y Ejecución
 ```bash
 gcc -std=c99 -Wall -Wextra -pedantic -Iinclude prueba.c -o test_bin
 ./test_bin
@@ -64,172 +45,208 @@ gcc -std=c99 -Wall -Wextra -pedantic -Iinclude prueba.c -o test_bin
 
 ---
 
-## 4. Catálogo Detallado de Aserciones
+## 3. Línea de Comandos y Control de Ejecución (CLI)
 
-Todas las aserciones tienen una versión estándar y una versión con sufijo `_MSG`, que permite agregar una explicación adicional o contexto dinámico mediante formato estilo `printf`.
+Al inicializar la suite con `TEST_SUITE_BEGIN_ARGS("Nombre", argc, argv);`, el binario admite automáticamente las siguientes opciones de ejecución:
 
-### 4.1. Aserciones Booleanas
+| Opción | Argumento | Descripción |
+| :--- | :--- | :--- |
+| `-k`, `--filter` | `<subcadena>` | Ejecuta únicamente las pruebas cuyo nombre contenga el texto especificado. |
+| `-f`, `--fail-fast` | *(ninguno)* | Detiene la ejecución de la suite tras el primer test que falle. |
+| `-q`, `--quiet` | *(ninguno)* | Modo compacto: emite `.` por acierto, `F` por fallo y `S` por salteado. |
+| `-t`, `--timeout` | `<segundos>` | Tiempo límite máximo por test antes de abortar por timeout (por defecto: 5 s; 0 = desactivado). |
+| `--tap` | *(ninguno)* | Emite resultados en formato estándar Test Anything Protocol v13. |
+| `--no-color` | *(ninguno)* | Desactiva colores ANSI. |
+| `-h`, `--help` | *(ninguno)* | Imprime el menú de ayuda y finaliza la ejecución. |
 
-Verifican condiciones de verdad o falsedad lógica:
+### Ejemplos de uso por terminal
+```bash
+# Ejecutar solo los tests relacionados a 'cadenas'
+./test_bin -k cadenas
 
-* `ASSERT_TRUE(condicion)` / `ASSERT_TRUE_MSG(condicion, "mensaje", ...)`
-  Falla si `condicion` evalúa a cero (falso).
-* `ASSERT_FALSE(condicion)` / `ASSERT_FALSE_MSG(condicion, "mensaje", ...)`
-  Falla si `condicion` evalúa a distinto de cero (verdadero).
+# Detener la suite en el primer error encontrado
+./test_bin -f
 
-**Ejemplo:**
-```c
-TEST(validar_banderas) {
-    int logueado = 1;
-    ASSERT_TRUE(logueado);
-    ASSERT_FALSE(logueado == 0);
-    ASSERT_TRUE_MSG(logueado > 0, "El estado debe ser positivo, valor: %d", logueado);
-}
+# Ejecutar con timeout estricto de 2 segundos por prueba
+./test_bin -t 2
+
+# Generar reporte TAP para herramientas de corrección automática
+./test_bin --tap
 ```
 
 ---
 
-### 4.2. Aserciones de Enteros con Signo (`int`, `long`, `short`)
+## 4. Catálogo Completo de Aserciones
 
-Imprimen el valor esperado y el valor obtenido como enteros:
+Todas las aserciones admiten una variante con sufijo `_MSG` para anexar explicaciones con formato estilo `printf`.
 
-* `ASSERT_INT_EQ(esperado, obtenido)`: Comprueba `esperado == obtenido`.
-* `ASSERT_INT_NE(esperado, obtenido)`: Comprueba `esperado != obtenido`.
-* `ASSERT_INT_LT(valor, limite)`: Comprueba `valor < limite`.
-* `ASSERT_INT_LE(valor, limite)`: Comprueba `valor <= limite`.
-* `ASSERT_INT_GT(valor, limite)`: Comprueba `valor > limite`.
-* `ASSERT_INT_GE(valor, limite)`: Comprueba `valor >= limite`.
+### 4.1. Booleanas
+* `ASSERT_TRUE(cond)` / `ASSERT_TRUE_MSG(cond, fmt, ...)`
+* `ASSERT_FALSE(cond)` / `ASSERT_FALSE_MSG(cond, fmt, ...)`
 
-**Ejemplo:**
+### 4.2. Enteros y Rangos Acotados
+* `ASSERT_INT_EQ(esperado, obtenido)`: Igualdad con signo (`%lld`).
+* `ASSERT_INT_NE(esperado, obtenido)`: Desigualdad con signo.
+* `ASSERT_INT_LT(valor, limite)`: Menor estricto (`<`).
+* `ASSERT_INT_LE(valor, limite)`: Menor o igual (`<=`).
+* `ASSERT_INT_GT(valor, limite)`: Mayor estricto (`>`).
+* `ASSERT_INT_GE(valor, limite)`: Mayor o igual (`>=`).
+* `ASSERT_INT_BETWEEN(valor, min, max)`: Verifica `min <= valor && valor <= max`.
+* `ASSERT_UINT_EQ(esperado, obtenido)`: Igualdad sin signo (`%llu`, `size_t`).
+* `ASSERT_UINT_NE(esperado, obtenido)`: Desigualdad sin signo.
+
 ```c
-TEST(operaciones_enteras) {
-    int resultado = 10 * 2;
-    ASSERT_INT_EQ(20, resultado);
-    ASSERT_INT_NE(0, resultado);
-    ASSERT_INT_LT(resultado, 50);
-    ASSERT_INT_GE(resultado, 20);
+ASSERT_INT_BETWEEN(nota, 1, 10);
+ASSERT_UINT_EQ(5, strlen("mundo"));
+```
+
+### 4.3. Números Reales (Coma Flotante)
+* `ASSERT_DOUBLE_EQ(esperado, obtenido, epsilon)`: Tolerancia absoluta (`|a - b| <= eps`).
+* `ASSERT_DOUBLE_NE(esperado, obtenido, epsilon)`: Diferencia fuera de tolerancia absoluta.
+* `ASSERT_DOUBLE_NEAR_REL(esperado, obtenido, rel_tol)`: Tolerancia relativa porcentual.
+
+```c
+// Tolerancia absoluta
+ASSERT_DOUBLE_EQ(3.1415, pi_aprox, 0.001);
+
+// Tolerancia relativa (útil para magnitudes muy grandes o ínfimas)
+ASSERT_DOUBLE_NEAR_REL(1000000.0, 1000050.0, 0.0001); // 0.01% de margen
+```
+
+### 4.4. Cadenas de Caracteres
+* `ASSERT_STR_EQ(esperado, obtenido)`: Igualdad exacta (maneja punteros `NULL` sin crashear).
+* `ASSERT_STR_NE(esperado, obtenido)`: Desigualdad.
+* `ASSERT_STR_CASE_EQ(esperado, obtenido)`: Igualdad insensible a mayúsculas/minúsculas.
+* `ASSERT_STR_CONTAINS(cadena, subcadena)`: Búsqueda de subcadena.
+
+```c
+ASSERT_STR_CASE_EQ("INICIAR", comando_ingresado);
+ASSERT_STR_CONTAINS(saludo, "Mundo");
+```
+
+### 4.5. Punteros y Direcciones
+* `ASSERT_PTR_NULL(ptr)`
+* `ASSERT_PTR_NOT_NULL(ptr)`
+* `ASSERT_PTR_EQ(esperado, obtenido)`
+* `ASSERT_PTR_NE(esperado, obtenido)`
+
+### 4.6. Arreglos y Memoria Binaria
+* `ASSERT_ARRAY_INT_EQ(arr_esperado, arr_obtenido, longitud)`:
+  Recorre el vector; ante cualquier diferencia reporta el índice exacto, valor esperado y obtenido.
+* `ASSERT_MEM_EQ(ptr_esperado, ptr_obtenido, tamaño_bytes)`:
+  Compara estructuras o buffers byte a byte. Al fallar, imprime el offset hexadecimal y un volcado de contexto.
+
+```c
+int exp[] = {1, 2, 3, 4};
+int act[] = {1, 2, 3, 4};
+ASSERT_ARRAY_INT_EQ(exp, act, 4);
+
+struct Config cfg1 = { ... }, cfg2 = { ... };
+ASSERT_MEM_EQ(&cfg1, &cfg2, sizeof(struct Config));
+```
+
+### 4.7. Captura de Salida Estándar (`stdout`)
+Evalúa funciones que imprimen en consola redirigiendo internamente los descriptores de salida:
+
+```c
+void imprimir_bienvenida(void) {
+    printf("¡Bienvenido al sistema!\n");
 }
+
+TEST(prueba_salida_consola) {
+    ASSERT_STDOUT_EQ(imprimir_bienvenida(), "¡Bienvenido al sistema!\n");
+}
+```
+
+### 4.8. Fallo Explícito
+* `ASSERT_FAIL("mensaje", ...)`: Provoca inmediatamente el fallo de la prueba.
+
+---
+
+## 5. Organización Avanzada: Hooks, Subcasos y Semillas
+
+### 5.1. Hooks de Ciclo de Vida (`BEFORE_EACH` / `AFTER_EACH`)
+Permite inicializar y liberar estructuras dinámicas (ej: memoria con `malloc`/`free`) automáticamente antes y después de cada prueba.
+
+```c
+static MiEstructura *ctx = NULL;
+
+void setup(void) {
+    ctx = crear_estructura();
+}
+
+void teardown(void) {
+    destruir_estructura(ctx);
+    ctx = NULL;
+}
+
+int main(int argc, char **argv) {
+    TEST_SUITE_BEGIN_ARGS("Suite con Fixtures", argc, argv);
+    BEFORE_EACH(setup);
+    AFTER_EACH(teardown); // Se ejecuta incluso si el test aborta por fallo de assert
+
+    RUN_TEST(test_uno);
+    RUN_TEST(test_dos);
+    return TEST_REPORT();
+}
+```
+
+### 5.2. Subcasos Descriptivos (`SUBCASE`)
+Etiqueta bloques lógicos dentro de un test para identificar con exactitud qué rama falló:
+
+```c
+TEST(validar_usuario) {
+    SUBCASE("Usuario nulo");
+    ASSERT_INT_EQ(-1, validar(NULL));
+
+    SUBCASE("Usuario sin permisos");
+    ASSERT_INT_EQ(0, validar(invitado));
+}
+```
+
+### 5.3. Tests Omitidos o Pendientes (`SKIP_TEST` / `TEST_SKIP`)
+* `SKIP_TEST(nombre, "motivo")`: Registra el test como salteado desde la suite.
+* `TEST_SKIP("motivo")`: Aborta la prueba desde adentro de la función sin contar como fallo.
+
+### 5.4. Pruebas con Semilla Determinística (`RUN_TEST_SEEDED`)
+Fija `srand(semilla)` inmediatamente antes de correr la prueba para garantizar reproducibilidad algorítmica:
+
+```c
+RUN_TEST_SEEDED(prueba_barajar, 12345);
 ```
 
 ---
 
-### 4.3. Aserciones de Enteros sin Signo (`unsigned int`, `size_t`)
+## 6. Detección de Fugas de Memoria con Valgrind
 
-Imprimen los valores como enteros no negativos (`%llu`):
+El framework y los proyectos estructurados cuentan con el comando `make memcheck`.
 
-* `ASSERT_UINT_EQ(esperado, obtenido)`: Comprueba igualdad sin signo.
-* `ASSERT_UINT_NE(esperado, obtenido)`: Comprueba desigualdad sin signo.
-
-**Ejemplo:**
-```c
-TEST(longitud_de_arreglo) {
-    size_t elementos = 5;
-    ASSERT_UINT_EQ(5, elementos);
-    ASSERT_UINT_NE(0, elementos);
-}
+```bash
+# En la raíz de la librería o de cualquier ejercicio:
+make memcheck
 ```
+Ejecuta la suite con `--leak-check=full --show-leak-kinds=all --error-exitcode=1`. Si un alumno olvida liberar memoria dinámica con `free()`, el proceso retorna código de error impidiendo que la prueba sea dada por válida.
 
 ---
 
-### 4.4. Aserciones de Coma Flotante (`double`, `float`)
+## 7. Integración con `plantilla-TP` y Gestor `tp.sh`
 
-En aritmética de coma flotante, comparar con `==` produce falsos negativos por imprecisión de redondeo. `p1_test` exige un parámetro de tolerancia (*epsilon*):
+El gestor `./tp.sh` del Trabajo Práctico incluye soporte nativo para `p1_test`:
 
-* `ASSERT_DOUBLE_EQ(esperado, obtenido, epsilon)`: Comprueba que `|esperado - obtenido| <= epsilon`.
-* `ASSERT_DOUBLE_NE(esperado, obtenido, epsilon)`: Comprueba que `|esperado - obtenido| > epsilon`.
+* **Crear esqueleto de prueba:**
+  ```bash
+  ./tp.sh add-test ejercicio1 test_matriz
+  ```
+  Genera `ejercicios/ejercicio1/test_matriz.c` listo para compilar.
 
-**Ejemplo:**
-```c
-TEST(calculo_geometrico) {
-    double division = 1.0 / 3.0;
-    // Compara con una tolerancia de 0.0001
-    ASSERT_DOUBLE_EQ(0.333333, division, 0.0001);
-}
-```
+* **Ejecutar pruebas del TP:**
+  ```bash
+  ./tp.sh test
+  ./tp.sh test ejercicio1
+  ```
 
----
-
-### 4.5. Aserciones sobre Cadenas de Caracteres (`strings`)
-
-Comparan mediante `strcmp` y gestionan punteros `NULL` sin generar fallos de segmentación:
-
-* `ASSERT_STR_EQ(esperado, obtenido)`: Comprueba que ambas cadenas sean idénticas. Si ambas son `NULL`, se consideran iguales.
-* `ASSERT_STR_NE(esperado, obtenido)`: Comprueba que difieran en contenido o estado de nulidad.
-* `ASSERT_STR_CONTAINS(cadena, subcadena)`: Comprueba que `subcadena` esté presente dentro de `cadena`.
-
-**Ejemplo:**
-```c
-TEST(manipulacion_texto) {
-    const char *mensaje = "Hola Cátedra P1";
-    ASSERT_STR_EQ("Hola Cátedra P1", mensaje);
-    ASSERT_STR_NE("Chau", mensaje);
-    ASSERT_STR_CONTAINS(mensaje, "Cátedra");
-}
-```
-
----
-
-### 4.6. Aserciones sobre Punteros
-
-Verifican direcciones de memoria o condiciones de nulidad:
-
-* `ASSERT_PTR_NULL(ptr)`: Comprueba `ptr == NULL`.
-* `ASSERT_PTR_NOT_NULL(ptr)`: Comprueba `ptr != NULL`.
-* `ASSERT_PTR_EQ(esperado, obtenido)`: Comprueba que ambos punteros apunten a la misma dirección de memoria.
-* `ASSERT_PTR_NE(esperado, obtenido)`: Comprueba direcciones diferentes.
-
-**Ejemplo:**
-```c
-TEST(gestion_memoria) {
-    int variable = 42;
-    int *puntero = &variable;
-    int *nulo = NULL;
-
-    ASSERT_PTR_NOT_NULL(puntero);
-    ASSERT_PTR_NULL(nulo);
-    ASSERT_PTR_EQ(&variable, puntero);
-}
-```
-
----
-
-### 4.7. Fallo Explícito
-
-* `ASSERT_FAIL("mensaje explicativo", ...)`: Provoca de manera inmediata el fallo del test en curso con el mensaje especificado. Se utiliza comúnmente en ramas que nunca deberían ejecutarse (por ejemplo, el default de un switch exhaustivo o tras una llamada que debió lanzar error previo).
-
----
-
-## 5. Control de Flujo y Resiliencia
-
-El framework utiliza internamente `setjmp` y `longjmp` de `<setjmp.h>`:
-
-1. `RUN_TEST(nombre)` invoca `setjmp(jump_env)` estableciendo un punto de restauración y llama a la función del test.
-2. Si cualquier aserción falla (incluso si está dentro de una función auxiliar anidada llamada por el test):
-   * Se formatea y muestra el mensaje de error en `stderr`.
-   * Se incrementa el contador de aserciones falladas.
-   * Se marca el test como fallado.
-   * Se invoca `longjmp(jump_env, 1)`, devolviendo la ejecución instantáneamente a `RUN_TEST`.
-3. `RUN_TEST` procesa el resultado del test e incrementa el contador de aprobados o desaprobados.
-4. El programa continúa ejecutando el siguiente `RUN_TEST` programado.
-5. Al concluir, `TEST_REPORT()` imprime el informe consolidado y retorna `0` o `1`.
-
----
-
-## 6. Integración con Proyectos `plantilla-TP`
-
-Para integrar `p1_test` en un Trabajo Práctico con la arquitectura de cátedra:
-
-1. Copiar `include/p1_test.h` dentro de `libs/p1_test/include/p1_test.h`.
-2. En el archivo `ejercicios/ejercicioX/Makefile`, definir:
-   ```makefile
-   LIB_NAME ?= p1_test
-   ```
-3. En `prueba.c` del ejercicio, incluir la cabecera:
-   ```c
-   #include "p1_test.h"
-   ```
-4. Ejecutar las pruebas directamente con el gestor del TP:
-   ```bash
-   ./tp.sh test ejercicio1
-   ```
-   o ejecutando `make test` desde la carpeta del ejercicio o desde la raíz del proyecto.
+* **Auditar memoria con Valgrind en todo el TP:**
+  ```bash
+  ./tp.sh memcheck
+  ./tp.sh memcheck ejercicio1
+  ```

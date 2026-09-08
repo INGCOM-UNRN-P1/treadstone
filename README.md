@@ -55,9 +55,11 @@ Podés consultar el manual exhaustivo con ejemplos de código de cada aserción 
 * **`docs/manual_uso.md`**: Manual de uso completo y referencia de la API.
 * **`tests/`**: Pruebas de autoverificación del propio framework:
   * `test_p1_test.c`: Verifica el núcleo, aserciones tipadas, hooks y CLI.
-  * `test_p1_advanced.c`: Verifica las cabeceras modulares `p1_arrays.h`, `p1_files.h` y `p1_stdio.h`.
+  * `test_p1_advanced.c`: Verifica las cabeceras modulares `p1_arrays.h`, `p1_files.h` y `p1_stdio.h` (incluyendo frontera N=0/1 y cleanup de mocks).
+  * `test_p1_timeout.c`: Verifica la interrupción de bucles infinitos con el watchdog de timeout (`SIGALRM`).
   * `test_p1_failures.c`: Verifica el formato y diagnóstico de fallos de aserción.
   * `test_p1_signals.c`: Verifica la recuperación ante `SIGSEGV` y `SIGFPE`.
+  * `test_contracts.c`: Verifica el framework de pre/postcondiciones e invariantes con `p1_test.h`.
 * **`ejemplos/proyecto_tp/`**: Proyecto completo de ejemplo basado en `plantilla-TP`, con `tp.sh`, `Makefile` y `ejercicios/ejercicio1` probado con `p1_test`.
 * **`Makefile`**: Orquestador principal de compilación, ejecución de pruebas y verificación de memoria.
 

@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "p1_test.h"
 #include "p1_arrays.h"
@@ -42,12 +43,32 @@ TEST(arrays_contencion) {
     ASSERT_ARRAY_INT_NOT_CONTAINS(arr, 4, 99);
 }
 
+TEST(arrays_frontera_y_nulos) {
+    /* Arreglos vacíos (N=0) */
+    ASSERT_ARRAY_INT_EQ(NULL, NULL, 0);
+    ASSERT_ARRAY_INT_SORTED_ASC(NULL, 0);
+    ASSERT_ARRAY_INT_SORTED_DESC(NULL, 0);
+    ASSERT_ARRAY_DOUBLE_EQ(NULL, NULL, 0, 0.001);
+    ASSERT_ARRAY_INT_NOT_CONTAINS(NULL, 0, 42);
+
+    /* Arreglos unitarios (N=1) */
+    int unitario[] = {42};
+    ASSERT_ARRAY_INT_EQ(unitario, unitario, 1);
+    ASSERT_ARRAY_INT_SORTED_ASC(unitario, 1);
+    ASSERT_ARRAY_INT_SORTED_DESC(unitario, 1);
+    ASSERT_ARRAY_INT_CONTAINS(unitario, 1, 42);
+    ASSERT_ARRAY_INT_NOT_CONTAINS(unitario, 1, 99);
+}
+
 /* --- Pruebas de p1_files.h --- */
 
 TEST(archivos_texto_y_binarios) {
-    const char *f1_path = "/tmp/p1_test_f1.txt";
-    const char *f2_path = "/tmp/p1_test_f2.txt";
-    const char *f_inexistente = "/tmp/p1_test_no_existe_123.txt";
+    char f1_path[128];
+    char f2_path[128];
+    char f_inexistente[128];
+    snprintf(f1_path, sizeof(f1_path), "/tmp/p1_test_f1_%d.txt", (int)getpid());
+    snprintf(f2_path, sizeof(f2_path), "/tmp/p1_test_f2_%d.txt", (int)getpid());
+    snprintf(f_inexistente, sizeof(f_inexistente), "/tmp/p1_test_no_existe_%d.txt", (int)getpid());
 
     FILE *f1 = fopen(f1_path, "w");
     FILE *f2 = fopen(f2_path, "w");
@@ -109,6 +130,16 @@ TEST(stdio_consumo_completo) {
     p1_mock_stdin_restore();
 }
 
+TEST(stdio_mock_limpieza_automatica) {
+    p1_mock_stdin_feed("mock sin restaurar manual\n");
+    /* No llamamos a p1_mock_stdin_restore: el runner debe invocar cleanup_hook */
+}
+
+TEST(stdio_mock_recuperado_post_limpieza) {
+    /* Verifica que stdin quedó operativo tras la limpieza automática */
+    ASSERT_TRUE(fileno(stdin) >= 0);
+}
+
 int main(int argc, char **argv) {
     TEST_SUITE_BEGIN_ARGS("Suite Avanzada: Arrays, Files y Stdio Mocks", argc, argv);
 
@@ -116,6 +147,7 @@ int main(int argc, char **argv) {
     RUN_TEST(arrays_doubles);
     RUN_TEST(arrays_strings_argv);
     RUN_TEST(arrays_contencion);
+    RUN_TEST(arrays_frontera_y_nulos);
 
     RUN_TEST(archivos_texto_y_binarios);
 
@@ -123,6 +155,8 @@ int main(int argc, char **argv) {
     RUN_TEST(stdio_captura_stderr);
     RUN_TEST(stdio_mock_interactivo);
     RUN_TEST(stdio_consumo_completo);
+    RUN_TEST(stdio_mock_limpieza_automatica);
+    RUN_TEST(stdio_mock_recuperado_post_limpieza);
 
     return TEST_REPORT();
 }

@@ -325,3 +325,274 @@ Este documento detalla 60 mejoras funcionales y de experiencia de uso (QoL) para
 * **Problema:** Integrar la librería en Moodle Virtual Programming Lab requiere scripts intermediarios para parsear notas.
 * **Solución:** Bandera que emite directamente las directivas `Grade :=>> <nota>` y comentarios compatibles con VPL.
 * **Resultado medible:** Calificación y feedback cargados automáticamente en el libro de calificaciones de Moodle.
+
+---
+
+## 7. Propuesta de Toolchain Externo para el Framework de Testing
+
+### 7.1. Justificación y Arquitectura Global
+[`p1_test.h`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/include/p1_test.h) resuelve la aserción y el reporte en tiempo de ejecución, pero no audita comportamientos indefinidos a nivel instrucción, desbordamientos de pila fuera de alcance de `longjmp`, cobertura real de ramas ni contención de procesos durante correcciones masivas.
+
+El toolchain externo rodea a la suite en cinco capas concéntricas:
+1. **Capa Estática:** Linter, analizador semántico y formateador de estilo.
+2. **Capa Dinámica Rápida:** Sanitizers del compilador (ASan, UBSan, LSan).
+3. **Capa de Auditoría Profunda:** Valgrind (Memcheck y Massif).
+4. **Capa de Cobertura y Mutación:** `gcov`, `gcovr` y tests de mutación.
+5. **Capa de Sandboxing y CI/CD:** Bubblewrap (`bwrap`), GitHub Actions y Moodle VPL.
+
+---
+
+### 7.2. Matriz de Componentes del Toolchain
+
+| Subsistema | Herramientas | Rol en la Cátedra | Invocación Estandarizada | Artefacto Generado |
+| :--- | :--- | :--- | :--- | :--- |
+| **Estilo y Reglas** | `clang-format` | Formato uniforme y limpio del código | `make format` | Código reescrito según `.clang-format` |
+| **Análisis Estático** | `clang-tidy`, `cppcheck` | Auditoría de punteros sin inicializar, casts y variables globales | `make lint` | Diagnóstico de advertencias en terminal |
+| **Sanitizers (LLVM/GCC)** | ASan + UBSan + LSan | Detección instantánea de accesos fuera de rango y UB en stack/heap | `make sanitize` | Traza en stderr con línea exacta de la infracción |
+| **Auditoría Heap** | Valgrind Memcheck | Verificación estricta de ciclo de vida de punteros | `make memcheck` | Log sin leaks (`--error-exitcode=1`) |
+| **Perfilado Memoria** | Valgrind Massif | Medición de consumo pico de heap en estructuras de datos | `make profile-mem` | `massif.out.<pid>` y gráfico ASCII con `ms_print` |
+| **Cobertura de Código**| `gcov`, `gcovr` | Medición de ramas y líneas ejercitadas por los tests | `make coverage` | Reporte HTML en `build/coverage/index.html` |
+| **Mutation Testing** | Mutador liviano en C/Python | Validación de la efectividad de las aserciones del alumno | `make test-mutants` | Puntuación de mutantes eliminados vs sobrevivientes |
+| **Aislamiento Seguro** | Bubblewrap (`bwrap`) | Enjaulado estricto para corrección masiva sin root | `make sandbox-test` | Proceso ejecutado sin red ni acceso a FS |
+| **Integración CI/CD** | GitHub Actions / VPL | Automatización de entrega y feedback continuo | Pipeline `.github/workflows/` | Reporte JUnit/Markdown y badges de aprobación |
+
+---
+
+### 7.3. Capa 1: Análisis Estático y Convenciones C99
+
+#### 1. Configuración de `clang-tidy`
+Inspecciona construcciones riesgosas antes de la compilación de pruebas:
+```bash
+clang-tidy src/*.c ejercicios/**/*.c \
+  -checks='-*,readability-*,bugprone-*,clang-analyzer-*,cert-*' \
+  -- -std=c99 -Iinclude -Ilibs/p1_test/include
+```
+* **Comprobaciones activas:** detección de variables locales no inicializadas (`bugprone-unhandled-exception`), pérdidas implícitas de precisión en castings y uso indebido de funciones inseguras (`cert-env33-c`).
+
+#### 2. Auditoría rápida con `cppcheck`
+Auditoría sin dependencias de cabeceras completas:
+```bash
+cppcheck --enable=all --inconclusive --std=c99 --error-exitcode=1 \
+  --suppress=missingIncludeSystem -Iinclude src/
+```
+
+#### 3. Formateador `clang-format`
+Reglas canónicas de cátedra aplicadas automáticamente:
+```yaml
+BasedOnStyle: LLVM
+IndentWidth: 4
+UseTab: Never
+ColumnLimit: 100
+AllowShortFunctionsOnASingleLine: None
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+  AfterControlStatement: false
+```
+
+---
+
+### 7.4. Capa 2: Sanitizers del Compilador (ASan + UBSan)
+
+A diferencia de Valgrind, los sanitizers se instrumentan en las instrucciones máquina durante la compilación, con una sobrecarga temporal de sólo 2x (frente a 20x de Valgrind), capturando desbordamientos en la pila (*stack-buffer-overflow*) que Valgrind ignora.
+
+#### Flag de compilación unificada
+```makefile
+CFLAGS_SAN = $(CFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointer -g
+```
+
+#### Errores capturados de inmediato:
+* **AddressSanitizer (ASan):**
+  * `stack-buffer-overflow`: arrays locales desbordados en funciones recursivas o iterativas.
+  * `global-buffer-overflow`: arreglos estáticos consultados más allá de su límite.
+  * `use-after-free`: accesos a memoria dinámica previamente liberada.
+* **UndefinedBehaviorSanitizer (UBSan):**
+  * `signed-integer-overflow`: operaciones `INT_MAX + 1` desbordadas.
+  * `shift-out-of-bounds`: desplazamientos a nivel de bits con magnitudes mayores al ancho del tipo.
+  * `null-pointer-dereference`: desreferencias directas antes de llegar al manejador de señales.
+
+---
+
+### 7.5. Capa 3: Auditoría y Perfilado con Valgrind
+
+#### 1. Memcheck (Alineación y pérdidas)
+```bash
+valgrind --leak-check=full \
+         --show-leak-kinds=all \
+         --track-origins=yes \
+         --errors-for-leak-kinds=all \
+         --error-exitcode=1 \
+         ./build/test_bin
+```
+* `track-origins=yes` localiza la instrucción exacta donde se declaró o asignó una variable no inicializada que provocó un salto condicional errático.
+
+#### 2. Massif (Consumo pico de Heap)
+```bash
+valgrind --tool=massif --massif-out-file=build/massif.out ./build/test_bin
+ms_print build/massif.out | head -n 35
+```
+* Permite certificar que estructuras dinámicas (árboles, listas) liberen memoria en tiempo de ejecución sin acumular mesetas de consumo innecesarias.
+
+---
+
+### 7.6. Capa 4: Medición de Cobertura de Código (`gcov` / `gcovr`)
+
+Medir la efectividad del conjunto de pruebas para comprobar qué porcentaje del código del estudiante fue efectivamente ejercitado.
+
+#### Flujo de instrumentación:
+```bash
+# 1. Compilación con instrumentación de cobertura
+gcc -Wall -Wextra -std=c99 --coverage -Iinclude src/ejercicio1.c tests/test_ejercicio1.c -o build/test_cov
+
+# 2. Ejecución de la suite p1_test
+./build/test_cov
+
+# 3. Consolidación y reporte con gcovr excluyendo la propia librería de tests
+gcovr --root . \
+      --exclude 'tests/' \
+      --exclude 'libs/p1_test/' \
+      --fail-under-line 80 \
+      --fail-under-branch 75 \
+      --html-details build/coverage/index.html \
+      --print-summary
+```
+
+* **Resultado medible:** Si el estudiante escribió tests que solo cubren el 50% de las ramas de su propia biblioteca, el comando falla (`--fail-under-line 80`) bloqueando la entrega.
+
+---
+
+### 7.7. Capa 5: Aislamiento Seguro en Sandbox (Bubblewrap)
+
+Durante la corrección desatendida de cientos de entregas de estudiantes, el runner debe mitigar riesgos de:
+* Bucles con llamadas a `fork()` infinitos (*fork bombs*).
+* Sobrescritura de archivos del sistema o del docente (`rm -rf ~`).
+* Intentos de conexión a Internet para enviar código o datos.
+
+#### Invocación segura mediante `bwrap`:
+```bash
+bwrap \
+  --ro-bind /usr /usr \
+  --ro-bind /lib /lib \
+  --ro-bind /lib64 /lib64 \
+  --ro-bind /bin /bin \
+  --ro-bind /etc/alternatives /etc/alternatives \
+  --ro-bind $(pwd) /workspace \
+  --tmpfs /tmp \
+  --unshare-all \
+  --unshare-net \
+  --die-with-parent \
+  --dir /workspace \
+  --chdir /workspace \
+  /usr/bin/prlimit --as=134217728 --cpu=5 --nproc=32 -- \
+  ./build/test_bin -t 3 -f
+```
+
+* **Restricciones aplicadas:**
+  * `--unshare-net`: anulación completa del stack TCP/IP y sockets de red.
+  * `--unshare-all`: aislamiento de IPC, UTS, PIDs y montajes.
+  * `--ro-bind`: el sistema operativo y el workspace se montan como solo lectura; escrituras solo en un `/tmp` en RAM efímero.
+  * `prlimit --as=134217728`: límite duro de memoria virtual de 128 MB.
+  * `prlimit --cpu=5`: máximo 5 segundos de CPU totales.
+  * `prlimit --nproc=32`: restricción estricta de subprocesos contra *fork bombs*.
+
+---
+
+### 7.8. Capa 6: Validación de Pruebas mediante Mutation Testing
+
+Para evaluar si los tests provistos por el alumno son rigurosos, el toolchain inyecta mutaciones sintácticas en su código de producción (ej: cambiar `>` por `<`, invertir retornos booleanos, alterar constantes de bucle):
+
+```
+Código Original:          Mutante 1 (Inversión condicional):
+if (valor > 0)            if (valor <= 0)
+    return 1;                 return 1;
+return 0;                 return 0;
+```
+
+#### Algoritmo de evaluación:
+1. Se compila y ejecuta la suite de tests del alumno contra su solución original (debe pasar al 100%).
+2. Se inyectan $M$ mutantes de forma automatizada en el código fuente.
+3. Se recompila y ejecuta la suite contra cada mutante:
+   * **Mutante Cazado (*Killed*):** Al menos una aserción de `p1_test` falló. Correcto.
+   * **Mutante Sobreviviente (*Survived*):** Todos los tests pasaron a pesar de la falla inyectada. Indica un test case faltante.
+4. **Puntaje de Mutación:**
+   $$\text{Score} = \frac{\text{Mutantes Cazados}}{\text{Mutantes Totales}} \times 100$$
+* Umbral de aprobación didáctico: $\ge 80\%$.
+
+---
+
+### 7.9. Capa 7: Automatización CI/CD (GitHub Actions / Moodle VPL)
+
+#### Flujo unificado en `.github/workflows/p1_test.yml`:
+```yaml
+name: Evaluacion P1 Test Suite
+
+on: [push, pull_request]
+
+jobs:
+  verificacion:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar dependencias
+        run: sudo apt-get update && sudo apt-get install -y valgrind clang-tidy gcovr libseccomp-dev bubblewrap
+
+      - name: 1. Verificacion de Estilo y Lint
+        run: make lint
+
+      - name: 2. Pruebas con Sanitizers (ASan + UBSan)
+        run: make sanitize
+
+      - name: 3. Auditoria de Memoria con Valgrind
+        run: make memcheck
+
+      - name: 4. Evaluacion de Cobertura
+        run: make coverage
+
+      - name: 5. Ejecucion en Sandbox
+        run: make sandbox-test
+
+      - name: 6. Publicar Reporte de Cobertura
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: build/coverage/
+```
+
+---
+
+### 7.10. Targets de Integración en el `Makefile` Principal
+
+Para que el estudiante y los docentes utilicen el toolchain con una única interfaz, se añaden las siguientes metas estandarizadas al [`Makefile`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/Makefile):
+
+```makefile
+# --- Toolchain Externo p1_test ---
+
+# 1. Compilación con Sanitizers
+sanitize: CFLAGS += -fsanitize=address,undefined -fno-omit-frame-pointer -g
+sanitize: clean $(TEST_BINS)
+	@echo "=== Ejecutando pruebas bajo ASan + UBSan ==="
+	@set -e; for bin in $(TEST_BINS); do ./$$bin; done
+
+# 2. Análisis Estático
+lint:
+	@echo "=== Analizando código con cppcheck y clang-tidy ==="
+	cppcheck --enable=warning,performance,portability --error-exitcode=1 -Iinclude tests/
+	clang-tidy tests/*.c -- -std=c99 -Iinclude
+
+# 3. Cobertura de Código
+coverage: CFLAGS += --coverage -g
+coverage: clean $(TEST_BINS)
+	@echo "=== Generando métricas de cobertura ==="
+	@set -e; for bin in $(TEST_BINS); do ./$$bin; done
+	mkdir -p build/coverage
+	gcovr --root . --html-details build/coverage/index.html --print-summary
+
+# 4. Aislamiento Sandbox
+sandbox-test: $(TEST_BINS)
+	@echo "=== Ejecutando tests dentro de Sandbox Bubblewrap ==="
+	@set -e; for bin in $(TEST_BINS); do \
+		bwrap --ro-bind / / --tmpfs /tmp --unshare-all --unshare-net --die-with-parent ./$$bin; \
+	done
+```
+

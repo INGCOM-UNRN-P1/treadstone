@@ -1,25 +1,31 @@
 # Makefile para librería header-only p1_test
 CC ?= gcc
 CFLAGS ?= -Wall -Wextra -pedantic -std=c99 -g
+LIB_NAME := $(notdir $(CURDIR))
+LIBRARY_NAME = lib$(LIB_NAME).a
 BUILD_DIR = build
-LIB_A = $(BUILD_DIR)/libp1_test.a
+LIB_A = $(BUILD_DIR)/$(LIBRARY_NAME)
 
-all: $(LIB_A)
+all: $(LIBRARY_NAME) $(LIB_A)
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-# Genera un archivo estático mínimo para resolver dependencias de enlazado -lp1_test
-$(LIB_A): | $(BUILD_DIR)
-	@echo "Empaquetando librería p1_test en $@"
-	@echo "void _p1_test_stub(void) {}" | $(CC) $(CFLAGS) -x c -c - -o $(BUILD_DIR)/stub.o
-	@ar rcs $@ $(BUILD_DIR)/stub.o
+# Genera la librería estática en la raíz (estándar plantilla-TP) y en build/
+$(LIBRARY_NAME):
+	@echo "Empaquetando librería $(LIB_NAME) en $@"
+	@echo "void _p1_test_stub(void) {}" | $(CC) $(CFLAGS) -x c -c - -o stub.o
+	@ar rcs $@ stub.o
+	@rm -f stub.o
+
+$(LIB_A): $(LIBRARY_NAME) | $(BUILD_DIR)
+	@cp $(LIBRARY_NAME) $(LIB_A)
 
 clean:
-	@echo "Limpiando p1_test..."
-	rm -rf $(BUILD_DIR)
+	@echo "Limpiando $(LIB_NAME)..."
+	rm -rf $(BUILD_DIR) $(LIBRARY_NAME) stub.o
 
 test:
-	@echo "p1_test es una librería header-only lista para ser incluida."
+	@echo "$(LIB_NAME) es una librería header-only lista para ser incluida."
 
 .PHONY: all clean test

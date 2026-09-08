@@ -7,13 +7,12 @@ LIB_NAME ?= p1_test
 
 # Directorio raíz del proyecto para referenciar libs
 ROOT_DIR = ../..
+LIB_DIR = $(addprefix $(ROOT_DIR)/libs/,$(LIB_NAME))
 
 # Archivos de las librerías
 LIBRARY = $(addprefix -l,$(LIB_NAME))
-
-# Detección dinámica de los directorios de headers y biblioteca según el esquema (plano o estructurado)
-INCLUDE_DIRS = $(foreach lib,$(LIB_NAME),$(if $(wildcard $(ROOT_DIR)/libs/$(lib)/include),-I$(ROOT_DIR)/libs/$(lib)/include,-I$(ROOT_DIR)/libs/$(lib)))
-LIBRARY_DIRS = $(foreach lib,$(LIB_NAME),$(if $(wildcard $(ROOT_DIR)/libs/$(lib)/build),-L$(ROOT_DIR)/libs/$(lib)/build,$(if $(wildcard $(ROOT_DIR)/libs/$(lib)/lib),-L$(ROOT_DIR)/libs/$(lib)/lib,-L$(ROOT_DIR)/libs/$(lib))))
+LIBRARY_DIRS = $(addprefix -L,$(LIB_DIR))
+INCLUDE_DIRS = $(addprefix -I,$(LIB_DIR))
 
 # Archivos comunes (código fuente y cabeceras del ejercicio)
 SRCS = $(filter-out main.c prueba.c, $(wildcard *.c))

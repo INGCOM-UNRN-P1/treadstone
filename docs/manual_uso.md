@@ -132,7 +132,7 @@ ASSERT_STR_CONTAINS(saludo, "Mundo");
 
 ### 4.6. Arreglos y Memoria Binaria
 * `ASSERT_ARRAY_INT_EQ(arr_esperado, arr_obtenido, longitud)`:
-  Recorre el vector; ante cualquier diferencia reporta el índice exacto, valor esperado y obtenido.
+  Recorre el arreglo; ante cualquier diferencia reporta el índice exacto, valor esperado y obtenido.
 * `ASSERT_MEM_EQ(ptr_esperado, ptr_obtenido, tamaño_bytes)`:
   Compara estructuras o buffers byte a byte. Al fallar, imprime el offset hexadecimal y un volcado de contexto.
 
@@ -257,7 +257,7 @@ El gestor `./tp.sh` del Trabajo Práctico incluye soporte nativo para `p1_test`:
 
 Para mantener el núcleo ligero, las aserciones avanzadas se distribuyen en cabeceras especializadas:
 
-### 8.1. `p1_arrays.h` — Vectores, Ordenamiento y Listas
+### 8.1. `p1_arrays.h` — Arreglos, Ordenamiento y Búsqueda
 Incluye validación avanzada de colecciones:
 * `ASSERT_ARRAY_INT_SORTED_ASC(arr, len)`: Comprueba orden no decreciente.
 * `ASSERT_ARRAY_INT_SORTED_DESC(arr, len)`: Comprueba orden no creciente.

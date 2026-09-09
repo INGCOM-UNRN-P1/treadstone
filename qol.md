@@ -101,7 +101,7 @@ Este documento detalla 60 mejoras funcionales y de experiencia de uso (QoL) para
 * **Resultado medible:** Gráfico en consola mostrando la discrepancia exacta de hijos izquierdos/derechos.
 
 ### 19. Aserción con función impresora personalizada (`ASSERT_STRUCT_EQ`)
-* **Problema:** `ASSERT_MEM_EQ` vuelca bytes hexadecimales ilegibles para tipos `struct Alumno` o `struct Vector`.
+* **Problema:** `ASSERT_MEM_EQ` vuelca bytes hexadecimales ilegibles para tipos `struct Alumno` o `struct Punto`.
 * **Solución:** Macro que recibe puntero a función de formateo `void (*repr)(const void*, char*, size_t)`.
 * **Resultado medible:** Fallo legible: `Esperado: {padron: 1234, nota: 8} - Obtenido: {padron: 1234, nota: 4}`.
 
@@ -146,7 +146,7 @@ Este documento detalla 60 mejoras funcionales y de experiencia de uso (QoL) para
 
 ### 27. Mock de secuencias deterministas de `rand()`
 * **Problema:** `srand(seed)` altera el generador global, afectando librerías que dependan de aleatoriedad.
-* **Solución:** Vector de valores precargados devueltos secuencialmente por un wrapper de `rand()`.
+* **Solución:** Arreglo de valores precargados devueltos secuencialmente por un wrapper de `rand()`.
 * **Resultado medible:** Tests de algoritmos probabilísticos testeados contra secuencias fijas de enteros.
 
 ### 28. Intercepción de llamadas a `system()` (`ASSERT_SYSTEM_CMD`)

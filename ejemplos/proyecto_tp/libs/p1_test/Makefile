@@ -1,38 +1,44 @@
-# Makefile para librería header-only p1_test
+# Makefile para librería p1_test
 CC ?= gcc
 CFLAGS ?= -Wall -Wextra -pedantic -std=c11 -g
 LIB_NAME := $(notdir $(CURDIR))
 LIBRARY_NAME = lib$(LIB_NAME).a
 BUILD_DIR = build
+SRC_DIR = src
+INC_DIR = include
 LIB_A = $(BUILD_DIR)/$(LIBRARY_NAME)
+
+LIB_SRCS = $(wildcard $(SRC_DIR)/*.c)
+LIB_OBJS = $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(LIB_SRCS))
 
 TEST_TARGET = test_bin
 TEST_SRCS = prueba.c
 TEST_OBJS = $(TEST_SRCS:.c=.o)
 
-all: $(LIBRARY_NAME) $(LIB_A) $(TEST_TARGET)
+all: $(LIB_A) $(LIBRARY_NAME) $(TEST_TARGET)
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-# Genera la librería estática en la raíz (estándar plantilla-TP) y en build/
-$(LIBRARY_NAME):
-	@echo "Empaquetando librería $(LIB_NAME) en $@"
-	@echo "void _p1_test_stub(void) {}" | $(CC) $(CFLAGS) -x c -c - -o stub.o
-	@ar rcs $@ stub.o
-	@rm -f stub.o
+# Compilar objetos de la librería
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -I. -I$(INC_DIR) -c $< -o $@
 
-$(LIB_A): $(LIBRARY_NAME) | $(BUILD_DIR)
-	@cp $(LIBRARY_NAME) $(LIB_A)
+# Generar librería estática en build/ y copiar a la raíz
+$(LIB_A): $(LIB_OBJS) | $(BUILD_DIR)
+	ar rcs $@ $^
 
-# Compilar ejecutable de pruebas de la librería
-$(TEST_TARGET): $(TEST_OBJS)
+$(LIBRARY_NAME): $(LIB_A)
+	cp $< $@
+
+# Compilar ejecutable de pruebas de la librería enlazando contra la librería estática
+$(TEST_TARGET): $(TEST_OBJS) $(LIB_A)
 	@echo "Compilando pruebas de $(LIB_NAME)..."
-	$(CC) $(CFLAGS) -I. -Iinclude -o $@ $^
+	$(CC) $(CFLAGS) -I. -I$(INC_DIR) -o $@ $(TEST_OBJS) -L$(BUILD_DIR) -l$(LIB_NAME)
 
 %.o: %.c
 	@echo "Compilando $<"
-	$(CC) $(CFLAGS) -I. -Iinclude -c $<
+	$(CC) $(CFLAGS) -I. -I$(INC_DIR) -c $< -o $@
 
 clean:
 	@echo "Limpiando $(LIB_NAME)..."

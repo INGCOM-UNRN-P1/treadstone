@@ -13,4 +13,7 @@ LIB_HEADERS=(
   "include/p1_stdio.h:include/p1_stdio.h"
   "include/tda/contracts.h:include/tda/contracts.h"
 )
-LIB_BINARIES=()
+LIB_BINARIES=(
+  "build/libp1_test.a:lib/libp1_test.a"
+)
+

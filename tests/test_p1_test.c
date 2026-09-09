@@ -17,6 +17,12 @@ static void teardown_hook(void) {
     g_hook_counter += 1;
 }
 
+/* --- Pruebas de Runtime y Versión --- */
+TEST(runtime_y_version) {
+    p1_test_runtime_init();
+    ASSERT_STR_EQ("2.0.0", p1_test_version());
+}
+
 /* --- Pruebas de Aserciones Booleanas --- */
 TEST(aserciones_booleanas) {
     ASSERT_TRUE(1 == 1);
@@ -172,6 +178,7 @@ int main(int argc, char **argv) {
     BEFORE_EACH(setup_hook);
     AFTER_EACH(teardown_hook);
 
+    RUN_TEST(runtime_y_version);
     RUN_TEST(aserciones_booleanas);
     RUN_TEST(aserciones_enteros);
     RUN_TEST(aserciones_unsigned);

@@ -111,7 +111,20 @@ typedef struct {
 /* Instancia estática única por unidad de compilación */
 static p1_test_state_t _p1_global_state;
 
+/* --- Funciones de información y runtime de la biblioteca --- */
+
+/**
+ * @brief Retorna la cadena de versión de la librería p1_test.
+ */
+const char *p1_test_version(void);
+
+/**
+ * @brief Inicializa los componentes de ejecución de p1_test.
+ */
+void p1_test_runtime_init(void);
+
 /* --- Gestión de colores y autodetección de terminal ----------------------- */
+
 
 static inline int _p1_should_use_color(void) {
     if (_p1_global_state.no_color || _p1_global_state.tap_mode) return 0;

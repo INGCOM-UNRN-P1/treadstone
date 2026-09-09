@@ -38,6 +38,10 @@ TEST(prueba_aserciones_basicas) {
     int x = 5;
     ASSERT_PTR_NOT_NULL(&x);
     ASSERT_PTR_NULL(NULL);
+
+    SUBCASE("Versión y runtime");
+    p1_test_runtime_init();
+    ASSERT_STR_EQ("2.0.0", p1_test_version());
 }
 
 /* --- Pruebas de aserciones de arreglos --- */

@@ -1,5 +1,5 @@
 /*
- * tda/contracts.h — Framework de invariantes en runtime para TDAs (C99).
+ * tda/contracts.h — Framework de invariantes en runtime para TDAs (C11).
  * ============================================================================
  * c-tda-contracts: contratos de precondición/postcondición/invariante con
  * reporte pedagógico, y helpers genéricos para validar estructuras enlazadas

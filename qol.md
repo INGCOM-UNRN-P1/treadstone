@@ -234,7 +234,7 @@ Este documento detalla 60 mejoras funcionales y de experiencia de uso (QoL) para
 
 ### 43. Aserciones para enteros de 64 bits (`ASSERT_INT64_EQ`, `ASSERT_UINT64_EQ`)
 * **Problema:** Comparar `int64_t` con `ASSERT_INT_EQ` provoca desbordamientos o warnings de casteo.
-* **Solución:** Macros dedicadas que emplean macros de formato estándar C99 `PRIi64` y `PRIu64`.
+* **Solución:** Macros dedicadas que emplean macros de formato estándar C11 `PRIi64` y `PRIu64`.
 * **Resultado medible:** Comparación e impresión limpia de valores enteros grandes sin truncamiento.
 
 ### 44. Aserciones de números flotantes especiales (`ASSERT_FLOAT_IS_NAN`, `ASSERT_FLOAT_IS_INF`)
@@ -358,21 +358,21 @@ El toolchain externo rodea a la suite en cinco capas concéntricas:
 
 ---
 
-### 7.3. Capa 1: Análisis Estático y Convenciones C99
+### 7.3. Capa 1: Análisis Estático y Convenciones C11
 
 #### 1. Configuración de `clang-tidy`
 Inspecciona construcciones riesgosas antes de la compilación de pruebas:
 ```bash
 clang-tidy src/*.c ejercicios/**/*.c \
   -checks='-*,readability-*,bugprone-*,clang-analyzer-*,cert-*' \
-  -- -std=c99 -Iinclude -Ilibs/p1_test/include
+  -- -std=c11 -Iinclude -Ilibs/p1_test/include
 ```
 * **Comprobaciones activas:** detección de variables locales no inicializadas (`bugprone-unhandled-exception`), pérdidas implícitas de precisión en castings y uso indebido de funciones inseguras (`cert-env33-c`).
 
 #### 2. Auditoría rápida con `cppcheck`
 Auditoría sin dependencias de cabeceras completas:
 ```bash
-cppcheck --enable=all --inconclusive --std=c99 --error-exitcode=1 \
+cppcheck --enable=all --inconclusive --std=c11 --error-exitcode=1 \
   --suppress=missingIncludeSystem -Iinclude src/
 ```
 
@@ -442,7 +442,7 @@ Medir la efectividad del conjunto de pruebas para comprobar qué porcentaje del 
 #### Flujo de instrumentación:
 ```bash
 # 1. Compilación con instrumentación de cobertura
-gcc -Wall -Wextra -std=c99 --coverage -Iinclude src/ejercicio1.c tests/test_ejercicio1.c -o build/test_cov
+gcc -Wall -Wextra -std=c11 --coverage -Iinclude src/ejercicio1.c tests/test_ejercicio1.c -o build/test_cov
 
 # 2. Ejecución de la suite p1_test
 ./build/test_cov
@@ -578,7 +578,7 @@ sanitize: clean $(TEST_BINS)
 lint:
 	@echo "=== Analizando código con cppcheck y clang-tidy ==="
 	cppcheck --enable=warning,performance,portability --error-exitcode=1 -Iinclude tests/
-	clang-tidy tests/*.c -- -std=c99 -Iinclude
+	clang-tidy tests/*.c -- -std=c11 -Iinclude
 
 # 3. Cobertura de Código
 coverage: CFLAGS += --coverage -g

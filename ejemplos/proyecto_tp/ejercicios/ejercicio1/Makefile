@@ -1,6 +1,6 @@
 # Variables generales
 CC ?= gcc
-CFLAGS ?= -Wall -Wextra -pedantic -std=c99 -g
+CFLAGS ?= -Wall -Wextra -pedantic -std=c11 -g
 
 # Nombres de las librerías que usa este ejercicio (separadas por espacio)
 LIB_NAME ?= p1_test

@@ -1,6 +1,6 @@
 /**
  * @file p1_arrays.h
- * @brief Aserciones avanzadas para arreglos en C99 para el framework p1_test.
+ * @brief Aserciones avanzadas para arreglos en C11 para el framework p1_test.
  * @version 1.0.0
  * 
  * Proporciona comprobaciones tipadas sobre arreglos enteros, reales y de cadenas,

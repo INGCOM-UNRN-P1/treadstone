@@ -1,6 +1,6 @@
 /**
  * @file p1_files.h
- * @brief Aserciones avanzadas para archivos de texto y binarios en C99.
+ * @brief Aserciones avanzadas para archivos de texto y binarios en C11.
  * @version 1.0.0
  * 
  * Permite validar existencia, contenido de texto línea por línea y coincidencia

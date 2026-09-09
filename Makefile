@@ -1,6 +1,6 @@
 # Makefile de la librería p1_test
 CC ?= gcc
-CFLAGS ?= -Wall -Wextra -Werror -std=c99 -pedantic -Iinclude
+CFLAGS ?= -Wall -Wextra -Werror -std=c11 -pedantic -Iinclude
 BUILD_DIR = build
 TESTS_DIR = tests
 EJEMPLO_DIR = ejemplos/proyecto_tp

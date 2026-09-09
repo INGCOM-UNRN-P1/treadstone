@@ -8,7 +8,7 @@ Companion App para orquestación, gestión de pruebas y generación de reportes 
 
 ## 1. Visión y Propósito
 
-[`p1_test.h`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/include/p1_test.h) opera como un motor de ejecución C99 puro en tiempo de compilación/ejecución nativa. Carece deliberadamente de capacidades de análisis estadístico, renderizado visual enriquecido, generación automática de esqueletos de prueba, integración directa con plataformas web (Moodle) y orquestación de mutaciones.
+[`p1_test.h`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/include/p1_test.h) opera como un motor de ejecución C11 puro en tiempo de compilación/ejecución nativa. Carece deliberadamente de capacidades de análisis estadístico, renderizado visual enriquecido, generación automática de esqueletos de prueba, integración directa con plataformas web (Moodle) y orquestación de mutaciones.
 
 `p1-companion` es una herramienta CLI complementaria escrita en Python y gestionada mediante **UV**, cuyo propósito es desacoplar toda la lógica pesada de reportes, análisis pedagógico y automatización administrativa del código C de los alumnos.
 

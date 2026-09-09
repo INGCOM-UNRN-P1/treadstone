@@ -1,6 +1,6 @@
 # Makefile para librería header-only p1_test
 CC ?= gcc
-CFLAGS ?= -Wall -Wextra -pedantic -std=c99 -g
+CFLAGS ?= -Wall -Wextra -pedantic -std=c11 -g
 LIB_NAME := $(notdir $(CURDIR))
 LIBRARY_NAME = lib$(LIB_NAME).a
 BUILD_DIR = build

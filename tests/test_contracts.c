@@ -1,6 +1,6 @@
 /*
  * Pruebas del framework tda/contracts.h utilizando p1_test.h.
- * Compila con -Wall -Wextra -Werror -pedantic -std=c99.
+ * Compila con -Wall -Wextra -Werror -pedantic -std=c11.
  */
 #include <stddef.h>
 

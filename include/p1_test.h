@@ -3,7 +3,7 @@
  * @brief Micro-framework avanzado de pruebas unitarias para Programación 1 (UNRN).
  * @version 2.0.0
  * 
- * Librería header-only en C99 puro con extensiones POSIX condicionales.
+ * Librería header-only en C11 puro con extensiones POSIX condicionales.
  * 
  * CARACTERÍSTICAS:
  * 1. Aserciones incondicionales: Inmunes a -DNDEBUG y -DDEBUG.
@@ -103,7 +103,7 @@ typedef struct {
     p1_hook_fn_t after_each;        /**< Teardown después de cada test */
     p1_hook_fn_t cleanup_hook;      /**< Hook de limpieza automática (descriptores, mocks) */
 
-    /* Control de flujo no local estándar C99 */
+    /* Control de flujo no local estándar C11 */
     jmp_buf jump_env;
     int has_jump_env;
 } p1_test_state_t;

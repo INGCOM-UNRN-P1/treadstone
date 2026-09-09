@@ -1,6 +1,6 @@
-# Librería `p1_test`: Framework Avanzado de Pruebas Unitarias para C99
+# Librería `p1_test`: Framework Avanzado de Pruebas Unitarias para C11
 
-Biblioteca *header-only* de pruebas unitarias para lenguaje C (estándar C99 con soporte POSIX), desarrollada para la cátedra de **Programación 1** (Universidad Nacional de Río Negro).
+Biblioteca *header-only* de pruebas unitarias para lenguaje C (estándar C11 con soporte POSIX), desarrollada para la cátedra de **Programación 1** (Universidad Nacional de Río Negro).
 
 Diseñada para ser simple, didáctica, resiliente a fallos y completamente inmune a directivas de preprocesador como `NDEBUG` o `DEBUG`.
 

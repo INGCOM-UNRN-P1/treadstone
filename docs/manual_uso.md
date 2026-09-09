@@ -2,7 +2,7 @@
 
 ## 1. Introducción y Fundamentos
 
-`p1_test` es una biblioteca avanzada de pruebas unitarias para lenguaje C (estándar C99) desarrollada para la cátedra de **Programación 1** de la Universidad Nacional de Río Negro (UNRN).
+`p1_test` es una biblioteca avanzada de pruebas unitarias para lenguaje C (estándar C11) desarrollada para la cátedra de **Programación 1** de la Universidad Nacional de Río Negro (UNRN).
 
 Resuelve de forma nativa los problemas críticos de testing en entornos académicos:
 1. **Inmunidad a Banderas de Compilación (`DEBUG` / `NDEBUG`):** A diferencia de `<assert.h>`, las aserciones no se desactivan con `-DNDEBUG` ni con ningún flag del compilador.
@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
 
 ### Compilación y Ejecución
 ```bash
-gcc -std=c99 -Wall -Wextra -pedantic -Iinclude prueba.c -o test_bin
+gcc -std=c11 -Wall -Wextra -pedantic -Iinclude prueba.c -o test_bin
 ./test_bin
 ```
 

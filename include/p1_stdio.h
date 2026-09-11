@@ -81,6 +81,7 @@ static inline void p1_mock_stdin_feed(const char *input_str) {
         dup2(fileno(_p1_stdio_ctx.mock_stdin_file), fileno(stdin));
     }
     _p1_global_state.cleanup_hook = _p1_stdio_emergency_cleanup;
+    p1_register_cleanup_hook(_p1_stdio_emergency_cleanup);
 }
 
 static inline void p1_mock_stdin_restore(void) {
@@ -117,6 +118,7 @@ static inline void p1_capture_stdout_begin(void) {
         dup2(fileno(_p1_stdio_ctx.capture_stdout_file), fileno(stdout));
     }
     _p1_global_state.cleanup_hook = _p1_stdio_emergency_cleanup;
+    p1_register_cleanup_hook(_p1_stdio_emergency_cleanup);
 }
 
 static inline void p1_capture_stdout_end(char *buf, size_t max_len) {
@@ -159,6 +161,7 @@ static inline void p1_capture_stderr_begin(void) {
         dup2(fileno(_p1_stdio_ctx.capture_stderr_file), fileno(stderr));
     }
     _p1_global_state.cleanup_hook = _p1_stdio_emergency_cleanup;
+    p1_register_cleanup_hook(_p1_stdio_emergency_cleanup);
 }
 
 static inline void p1_capture_stderr_end(char *buf, size_t max_len) {
@@ -266,6 +269,74 @@ static inline void _p1_fail_stdin_consumed(const char *file, int line, const cha
 } while (0)
 
 #define ASSERT_STDIN_CONSUMED() ASSERT_STDIN_CONSUMED_MSG(NULL)
+
+/**
+ * @def ASSERT_STDOUT_CONTAINS(statement, needle)
+ * @brief Ejecuta statement capturando stdout y verifica que contenga needle.
+ */
+#define ASSERT_STDOUT_CONTAINS_MSG(statement, needle, ...) do { \
+    char _p1_out_captured[4096] = {0}; \
+    p1_capture_stdout_begin(); \
+    do { statement; } while (0); \
+    p1_capture_stdout_end(_p1_out_captured, sizeof(_p1_out_captured)); \
+    ASSERT_STR_CONTAINS_MSG(_p1_out_captured, needle, __VA_ARGS__); \
+} while (0)
+
+#define ASSERT_STDOUT_CONTAINS(statement, needle) \
+    ASSERT_STDOUT_CONTAINS_MSG(statement, needle, NULL)
+
+/**
+ * @def ASSERT_STDERR_CONTAINS(statement, needle)
+ * @brief Ejecuta statement capturando stderr y verifica que contenga needle.
+ */
+#define ASSERT_STDERR_CONTAINS_MSG(statement, needle, ...) do { \
+    char _p1_err_captured[4096] = {0}; \
+    p1_capture_stderr_begin(); \
+    do { statement; } while (0); \
+    p1_capture_stderr_end(_p1_err_captured, sizeof(_p1_err_captured)); \
+    ASSERT_STR_CONTAINS_MSG(_p1_err_captured, needle, __VA_ARGS__); \
+} while (0)
+
+#define ASSERT_STDERR_CONTAINS(statement, needle) \
+    ASSERT_STDERR_CONTAINS_MSG(statement, needle, NULL)
+
+/* --- Macros de E/S con Pistas Pedagógicas (QoL 4) ------------------------- */
+
+#define ASSERT_STDOUT_EQ_HINT(statement, expected, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_STDOUT_EQ(statement, expected); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_STDERR_EQ_HINT(statement, expected, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_STDERR_EQ(statement, expected); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_STDIO_EQ_HINT(statement, stdin_input, expected_stdout, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_STDIO_EQ(statement, stdin_input, expected_stdout); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_STDOUT_CONTAINS_HINT(statement, needle, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_STDOUT_CONTAINS(statement, needle); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_STDERR_CONTAINS_HINT(statement, needle, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_STDERR_CONTAINS(statement, needle); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_STDIN_CONSUMED_HINT(hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_STDIN_CONSUMED(); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
 
 #ifdef __cplusplus
 }

@@ -97,6 +97,10 @@ typedef struct {
     int no_color;                   /**< Desactivar colores ANSI */
     int timeout_seconds;            /**< Timeout en segundos por test */
     int tap_test_index;             /**< Contador de pruebas para TAP */
+    const char *md_report_path;     /**< Ruta de exportación de reporte Markdown */
+
+    /* Pistas pedagógicas */
+    const char *current_hint;       /**< Pista pedagógica activa para el assert actual */
 
     /* Hooks */
     p1_hook_fn_t before_each;       /**< Setup antes de cada test */
@@ -110,6 +114,208 @@ typedef struct {
 
 /* Instancia estática única por unidad de compilación */
 static p1_test_state_t _p1_global_state;
+
+/* --- Registro múltiple de ganchos de limpieza (cleanup hooks) ------------ */
+#define _P1_MAX_CLEANUP_HOOKS 16
+
+typedef struct {
+    p1_hook_fn_t hooks[_P1_MAX_CLEANUP_HOOKS];
+    size_t count;
+} _p1_cleanup_registry_t;
+
+static _p1_cleanup_registry_t _p1_cleanups = { {0}, 0 };
+
+static inline void p1_register_cleanup_hook(p1_hook_fn_t hook) {
+    if (hook == NULL) return;
+    for (size_t i = 0; i < _p1_cleanups.count; i++) {
+        if (_p1_cleanups.hooks[i] == hook) return;
+    }
+    if (_p1_cleanups.count < _P1_MAX_CLEANUP_HOOKS) {
+        _p1_cleanups.hooks[_p1_cleanups.count++] = hook;
+    }
+}
+
+static inline void _p1_run_all_cleanup_hooks(void) {
+    for (size_t i = 0; i < _p1_cleanups.count; i++) {
+        if (_p1_cleanups.hooks[i] != NULL) {
+            _p1_cleanups.hooks[i]();
+        }
+    }
+    _p1_cleanups.count = 0;
+    if (_p1_global_state.cleanup_hook != NULL) {
+        _p1_global_state.cleanup_hook();
+        _p1_global_state.cleanup_hook = NULL;
+    }
+}
+
+/* --- Gestión y rastreo didáctico de memoria dinámica (QoL 7) -------------- */
+
+typedef struct _p1_mem_block {
+    size_t size;
+    const char *file;
+    int line;
+    uint32_t magic;
+    struct _p1_mem_block *prev;
+    struct _p1_mem_block *next;
+    void *padding;
+} _p1_mem_block_t;
+
+#define _P1_MEM_MAGIC 0x50314D45U /* "P1ME" */
+
+typedef struct {
+    size_t alloc_count;
+    size_t free_count;
+    size_t active_blocks;
+    size_t active_bytes;
+    size_t peak_bytes;
+} p1_mem_stats_t;
+
+static p1_mem_stats_t _p1_mem_state = {0, 0, 0, 0, 0};
+static _p1_mem_block_t *_p1_mem_head = NULL;
+
+static inline void *p1_malloc_loc(size_t size, const char *file, int line) {
+    if (size == 0) return NULL;
+    _p1_mem_block_t *hdr = (_p1_mem_block_t *)malloc(sizeof(_p1_mem_block_t) + size);
+    if (hdr == NULL) return NULL;
+    hdr->size = size;
+    hdr->file = file;
+    hdr->line = line;
+    hdr->magic = _P1_MEM_MAGIC;
+    hdr->padding = NULL;
+
+    _p1_mem_state.alloc_count++;
+    _p1_mem_state.active_blocks++;
+    _p1_mem_state.active_bytes += size;
+    if (_p1_mem_state.active_bytes > _p1_mem_state.peak_bytes) {
+        _p1_mem_state.peak_bytes = _p1_mem_state.active_bytes;
+    }
+
+    hdr->prev = NULL;
+    hdr->next = _p1_mem_head;
+    if (_p1_mem_head != NULL) {
+        _p1_mem_head->prev = hdr;
+    }
+    _p1_mem_head = hdr;
+
+    return (void *)(hdr + 1);
+}
+
+static inline void p1_free(void *ptr) {
+    if (ptr == NULL) return;
+    _p1_mem_block_t *hdr = ((_p1_mem_block_t *)ptr) - 1;
+    if (hdr->magic != _P1_MEM_MAGIC) {
+        free(ptr);
+        return;
+    }
+
+    if (hdr->prev != NULL) {
+        hdr->prev->next = hdr->next;
+    } else {
+        _p1_mem_head = hdr->next;
+    }
+    if (hdr->next != NULL) {
+        hdr->next->prev = hdr->prev;
+    }
+
+    _p1_mem_state.free_count++;
+    if (_p1_mem_state.active_blocks > 0) _p1_mem_state.active_blocks--;
+    if (_p1_mem_state.active_bytes >= hdr->size) {
+        _p1_mem_state.active_bytes -= hdr->size;
+    } else {
+        _p1_mem_state.active_bytes = 0;
+    }
+
+    hdr->magic = 0;
+    free(hdr);
+}
+
+static inline void *p1_calloc_loc(size_t nmemb, size_t size, const char *file, int line) {
+    size_t total = nmemb * size;
+    if (nmemb != 0 && total / nmemb != size) return NULL;
+    void *ptr = p1_malloc_loc(total, file, line);
+    if (ptr != NULL) {
+        memset(ptr, 0, total);
+    }
+    return ptr;
+}
+
+static inline void *p1_realloc_loc(void *ptr, size_t new_size, const char *file, int line) {
+    if (ptr == NULL) {
+        return p1_malloc_loc(new_size, file, line);
+    }
+    if (new_size == 0) {
+        p1_free(ptr);
+        return NULL;
+    }
+    _p1_mem_block_t *hdr = ((_p1_mem_block_t *)ptr) - 1;
+    if (hdr->magic != _P1_MEM_MAGIC) {
+        return realloc(ptr, new_size);
+    }
+
+    void *new_ptr = p1_malloc_loc(new_size, file, line);
+    if (new_ptr != NULL) {
+        size_t copy_bytes = (hdr->size < new_size) ? hdr->size : new_size;
+        memcpy(new_ptr, ptr, copy_bytes);
+        p1_free(ptr);
+    }
+    return new_ptr;
+}
+
+static inline size_t p1_mem_alloc_count(void) {
+    return _p1_mem_state.alloc_count;
+}
+
+static inline size_t p1_mem_free_count(void) {
+    return _p1_mem_state.free_count;
+}
+
+static inline size_t p1_mem_active_blocks(void) {
+    return _p1_mem_state.active_blocks;
+}
+
+static inline size_t p1_mem_active_bytes(void) {
+    return _p1_mem_state.active_bytes;
+}
+
+static inline size_t p1_mem_peak_bytes(void) {
+    return _p1_mem_state.peak_bytes;
+}
+
+static inline void p1_mem_reset(void) {
+    _p1_mem_block_t *curr = _p1_mem_head;
+    while (curr != NULL) {
+        _p1_mem_block_t *next = curr->next;
+        curr->magic = 0;
+        free(curr);
+        curr = next;
+    }
+    _p1_mem_head = NULL;
+    _p1_mem_state.alloc_count = 0;
+    _p1_mem_state.free_count = 0;
+    _p1_mem_state.active_blocks = 0;
+    _p1_mem_state.active_bytes = 0;
+    _p1_mem_state.peak_bytes = 0;
+}
+
+#define p1_malloc(sz) p1_malloc_loc((sz), __FILE__, __LINE__)
+#define p1_calloc(n, sz) p1_calloc_loc((n), (sz), __FILE__, __LINE__)
+#define p1_realloc(p, sz) p1_realloc_loc((p), (sz), __FILE__, __LINE__)
+
+/* --- Registro de historial de pruebas para reportes Markdown (QoL 15) ----- */
+#define _P1_MAX_TEST_RECORDS 256
+
+typedef struct {
+    char test_name[64];
+    int status; /* 0: Passed, 1: Failed, 2: Skipped */
+    double elapsed_ms;
+} _p1_test_record_t;
+
+typedef struct {
+    _p1_test_record_t records[_P1_MAX_TEST_RECORDS];
+    size_t count;
+} _p1_test_history_t;
+
+static _p1_test_history_t _p1_test_history = { { { {0}, 0, 0.0 } }, 0 };
 
 /* --- Funciones de información y runtime de la biblioteca --- */
 
@@ -187,12 +393,51 @@ static inline void _p1_print_user_msg(const char *fmt, va_list args) {
     }
 }
 
+static inline void _p1_print_hint_if_present(void) {
+    if (_p1_global_state.quiet_mode) return;
+    if (_p1_global_state.current_hint != NULL && _p1_global_state.current_hint[0] != '\0') {
+        fprintf(stderr, "    %s💡 PISTA PEDAGÓGICA:%s %s\n",
+                _p1_clr(_P1_CLR_YELLOW), _p1_clr(_P1_CLR_RESET), _p1_global_state.current_hint);
+    }
+}
+
 static inline void _p1_trigger_failure(void) {
+    _p1_print_hint_if_present();
+    _p1_global_state.current_hint = NULL;
     _p1_global_state.asserts_failed++;
     _p1_global_state.current_test_failed = 1;
     if (_p1_global_state.in_test_scope) {
         longjmp(_p1_global_state.jump_env, 1);
     }
+}
+
+static inline void _p1_fail_no_leaks(const char *file, int line, const char *expr,
+                                     size_t blocks, size_t bytes, const char *fmt, ...) {
+    _p1_print_fail_header(file, line, expr);
+    if (!_p1_global_state.quiet_mode) {
+        fprintf(stderr, "    %sFUGA DE MEMORIA DETECTADA:%s %zu bloque(s) activo(s) sin liberar (%zu bytes totales)\n",
+                _p1_clr(_P1_CLR_RED), _p1_clr(_P1_CLR_RESET), blocks, bytes);
+        _p1_mem_block_t *curr = _p1_mem_head;
+        size_t count = 0;
+        while (curr != NULL && count < 5) {
+            fprintf(stderr, "      - Bloque #%zu: %zu bytes asignados en %s:%d\n",
+                    count + 1, curr->size,
+                    curr->file ? curr->file : "<desconocido>",
+                    curr->line);
+            curr = curr->next;
+            count++;
+        }
+        if (blocks > 5) {
+            fprintf(stderr, "      ... y %zu bloque(s) adicional(es).\n", blocks - 5);
+        }
+    }
+    if (fmt != NULL) {
+        va_list args;
+        va_start(args, fmt);
+        _p1_print_user_msg(fmt, args);
+        va_end(args);
+    }
+    _p1_trigger_failure();
 }
 
 /* --- Manejadores de fallos tipados --------------------------------------- */
@@ -545,6 +790,8 @@ static inline void _p1_parse_args(int argc, char **argv) {
             _p1_global_state.filter = argv[++i];
         } else if ((strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--timeout") == 0) && i + 1 < argc) {
             _p1_global_state.timeout_seconds = atoi(argv[++i]);
+        } else if (strcmp(argv[i], "--md-report") == 0 && i + 1 < argc) {
+            _p1_global_state.md_report_path = argv[++i];
         } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
             printf("Uso: %s [opciones] [filtro]\n", argv[0]);
             printf("Opciones:\n");
@@ -552,6 +799,7 @@ static inline void _p1_parse_args(int argc, char **argv) {
             printf("  -f, --fail-fast        Detiene la suite tras el primer test fallido\n");
             printf("  -q, --quiet            Modo silencioso/compacto (emite '.' y 'F')\n");
             printf("  -t, --timeout <seg>    Límite de tiempo por test (segundos, default: 5, 0=desactivado)\n");
+            printf("      --md-report <ruta> Emite reporte estructurado en Markdown con badges y tablas\n");
             printf("      --tap              Salida en formato Test Anything Protocol v13\n");
             printf("      --no-color         Desactiva colores ANSI\n");
             printf("  -h, --help             Muestra este mensaje y sale\n");
@@ -606,7 +854,12 @@ static inline void _p1_parse_args(int argc, char **argv) {
     _p1_global_state.current_test_skipped = 0; \
     _p1_global_state.in_test_scope = 0; \
     _p1_global_state.current_subcase = NULL; \
+    _p1_global_state.current_hint = NULL; \
+    _p1_global_state.md_report_path = NULL; \
     _p1_global_state.tap_test_index = 0; \
+    _p1_test_history.count = 0; \
+    _p1_cleanups.count = 0; \
+    p1_mem_reset(); \
     _p1_parse_args(argc, argv); \
     if (_p1_global_state.tap_mode) { \
         printf("TAP version 13\n"); \
@@ -633,6 +886,13 @@ static inline void _p1_parse_args(int argc, char **argv) {
 #define SKIP_TEST(name, reason) do { \
     if (_p1_global_state.filter == NULL || strstr(#name, _p1_global_state.filter) != NULL) { \
         _p1_global_state.tests_skipped++; \
+        if (_p1_test_history.count < _P1_MAX_TEST_RECORDS) { \
+            _p1_test_record_t *_r = &_p1_test_history.records[_p1_test_history.count++]; \
+            strncpy(_r->test_name, #name, sizeof(_r->test_name) - 1); \
+            _r->test_name[sizeof(_r->test_name) - 1] = '\0'; \
+            _r->status = 2; \
+            _r->elapsed_ms = 0.0; \
+        } \
         if (_p1_global_state.tap_mode) { \
             _p1_global_state.tap_test_index++; \
             printf("ok %d - %s # SKIP %s\n", _p1_global_state.tap_test_index, #name, reason); \
@@ -675,7 +935,9 @@ static inline void _p1_parse_args(int argc, char **argv) {
     _p1_global_state.current_test_failed = 0; \
     _p1_global_state.current_test_skipped = 0; \
     _p1_global_state.current_subcase = NULL; \
+    _p1_global_state.current_hint = NULL; \
     _p1_global_state.in_test_scope = 1; \
+    p1_mem_reset(); \
     if (!_p1_global_state.quiet_mode && !_p1_global_state.tap_mode) { \
         printf("  [CORRIENDO] %-35s ... ", #name); \
         fflush(stdout); \
@@ -694,10 +956,7 @@ static inline void _p1_parse_args(int argc, char **argv) {
         _p1_jump_res = _p1_setjmp_val; \
     } \
     _P1_RESTORE_SIGNALS(_p1_prev_segv, _p1_prev_fpe, _p1_prev_alrm); \
-    if (_p1_global_state.cleanup_hook != NULL) { \
-        _p1_global_state.cleanup_hook(); \
-        _p1_global_state.cleanup_hook = NULL; \
-    } \
+    _p1_run_all_cleanup_hooks(); \
     _p1_emergency_capture_cleanup(); \
     clock_t _p1_end_t = clock(); \
     _p1_global_state.current_elapsed_ms = ((double)(_p1_end_t - _p1_start_t) / (double)CLOCKS_PER_SEC) * 1000.0; \
@@ -706,8 +965,10 @@ static inline void _p1_parse_args(int argc, char **argv) {
     } \
     _p1_global_state.in_test_scope = 0; \
     _p1_global_state.tap_test_index++; \
+    int _p1_rec_status = 0; \
     if (_p1_jump_res == 2 || _p1_global_state.current_test_skipped) { \
         _p1_global_state.tests_skipped++; \
+        _p1_rec_status = 2; \
         if (_p1_global_state.tap_mode) { \
             printf("ok %d - %s # SKIP\n", _p1_global_state.tap_test_index, #name); \
         } else if (_p1_global_state.quiet_mode) { \
@@ -718,6 +979,7 @@ static inline void _p1_parse_args(int argc, char **argv) {
         } \
     } else if (_p1_global_state.current_test_failed) { \
         _p1_global_state.tests_failed++; \
+        _p1_rec_status = 1; \
         if (_p1_global_state.tap_mode) { \
             printf("not ok %d - %s\n", _p1_global_state.tap_test_index, #name); \
         } else if (_p1_global_state.quiet_mode) { \
@@ -728,6 +990,7 @@ static inline void _p1_parse_args(int argc, char **argv) {
         } \
     } else { \
         _p1_global_state.tests_passed++; \
+        _p1_rec_status = 0; \
         if (_p1_global_state.tap_mode) { \
             printf("ok %d - %s\n", _p1_global_state.tap_test_index, #name); \
         } else if (_p1_global_state.quiet_mode) { \
@@ -737,8 +1000,16 @@ static inline void _p1_parse_args(int argc, char **argv) {
             printf("%sPASÓ%s (%.2f ms)\n", _p1_clr(_P1_CLR_GREEN), _p1_clr(_P1_CLR_RESET), _p1_global_state.current_elapsed_ms); \
         } \
     } \
+    if (_p1_test_history.count < _P1_MAX_TEST_RECORDS) { \
+        _p1_test_record_t *_r = &_p1_test_history.records[_p1_test_history.count++]; \
+        strncpy(_r->test_name, #name, sizeof(_r->test_name) - 1); \
+        _r->test_name[sizeof(_r->test_name) - 1] = '\0'; \
+        _r->status = _p1_rec_status; \
+        _r->elapsed_ms = _p1_global_state.current_elapsed_ms; \
+    } \
     _p1_global_state.current_test_name = NULL; \
     _p1_global_state.current_subcase = NULL; \
+    _p1_global_state.current_hint = NULL; \
 } while (0)
 
 /**
@@ -751,11 +1022,71 @@ static inline void _p1_parse_args(int argc, char **argv) {
 } while (0)
 
 /**
+ * @brief Escribe un informe de resultados consolidado en formato Markdown (QoL 15).
+ * @param path Ruta del archivo Markdown de salida.
+ */
+static inline void p1_write_markdown_report(const char *path) {
+    if (path == NULL || path[0] == '\0') return;
+    FILE *fp = fopen(path, "w");
+    if (!fp) {
+        fprintf(stderr, "Error: no se pudo abrir '%s' para escribir el reporte Markdown.\n", path);
+        return;
+    }
+    int total = _p1_global_state.tests_run + _p1_global_state.tests_skipped;
+    int passed = _p1_global_state.tests_passed;
+    int failed = _p1_global_state.tests_failed;
+    int skipped = _p1_global_state.tests_skipped;
+
+    fprintf(fp, "# Reporte de Evaluación de Pruebas: %s\n\n",
+            _p1_global_state.suite_name ? _p1_global_state.suite_name : "Suite de Pruebas");
+
+    /* Badges didácticos compatibles con GitHub Classroom y shields.io */
+    if (failed == 0) {
+        fprintf(fp, "![Estado](https://img.shields.io/badge/pruebas-100%%25%%20aprobadas-brightgreen) ");
+    } else {
+        fprintf(fp, "![Estado](https://img.shields.io/badge/pruebas-fallos%%20detectados-red) ");
+    }
+    fprintf(fp, "![Tests](https://img.shields.io/badge/tests-%d%%20total-blue) ", total);
+    fprintf(fp, "![Aserciones](https://img.shields.io/badge/aserciones-%d-informational)\n\n", _p1_global_state.asserts_total);
+
+    /* Tabla Resumen */
+    fprintf(fp, "## Resumen Consolidado\n\n");
+    fprintf(fp, "| Métrica | Cantidad | Estado |\n");
+    fprintf(fp, "| :--- | :---: | :---: |\n");
+    fprintf(fp, "| **Tests Ejecutados** | `%d` | ℹ️ |\n", _p1_global_state.tests_run);
+    fprintf(fp, "| **Tests Aprobados** | `%d` | %s |\n", passed, passed > 0 ? "✅" : "⚪");
+    fprintf(fp, "| **Tests Desaprobados** | `%d` | %s |\n", failed, failed > 0 ? "❌" : "✅");
+    fprintf(fp, "| **Tests Salteados** | `%d` | %s |\n", skipped, skipped > 0 ? "⚠️" : "⚪");
+    fprintf(fp, "| **Aserciones Evaluadas** | `%d` | 🔍 |\n", _p1_global_state.asserts_total);
+    fprintf(fp, "| **Aserciones Falladas** | `%d` | %s |\n\n", _p1_global_state.asserts_failed, _p1_global_state.asserts_failed > 0 ? "❌" : "✅");
+
+    /* Detalle por Caso de Prueba */
+    fprintf(fp, "## Desglose por Caso de Prueba\n\n");
+    fprintf(fp, "| # | Caso de Prueba | Resultado | Tiempo (ms) |\n");
+    fprintf(fp, "| :-: | :--- | :-: | :-: |\n");
+    for (size_t i = 0; i < _p1_test_history.count; i++) {
+        _p1_test_record_t *r = &_p1_test_history.records[i];
+        const char *st_str = (r->status == 0) ? "✅ PASÓ" : ((r->status == 1) ? "❌ FALLÓ" : "⚠️ SALTEADO");
+        fprintf(fp, "| %zu | `%s` | %s | `%.2f` |\n", i + 1, r->test_name, st_str, r->elapsed_ms);
+    }
+    fprintf(fp, "\n---\n*Reporte generado automáticamente por `p1_test`.*\n");
+    fclose(fp);
+    if (!_p1_global_state.quiet_mode && !_p1_global_state.tap_mode) {
+        printf("  %s[Reporte Markdown emitido en: %s]%s\n",
+               _p1_clr(_P1_CLR_CYAN), path, _p1_clr(_P1_CLR_RESET));
+    }
+}
+
+/**
  * @def TEST_REPORT()
  * @brief Imprime el reporte consolidado de la suite y retorna código de salida.
  * @return 0 si todos los tests pasaron, 1 si al menos uno falló.
  */
 static inline int TEST_REPORT(void) {
+    if (_p1_global_state.md_report_path != NULL) {
+        p1_write_markdown_report(_p1_global_state.md_report_path);
+    }
+
     if (_p1_global_state.quiet_mode) {
         printf("\n");
     }
@@ -1164,6 +1495,187 @@ static inline int TEST_REPORT(void) {
 #define ASSERT_FAIL(...) do { \
     _p1_global_state.asserts_total++; \
     _p1_fail_explicit(__FILE__, __LINE__, __VA_ARGS__); \
+} while (0)
+
+/* ========================================================================= */
+/* --- ASERCIONES DE GESTIÓN DE MEMORIA Y DETECCIÓN DE FUGAS (QoL 7) ------- */
+/* ========================================================================= */
+
+#define ASSERT_ALLOC_COUNT_MSG(expected, ...) do { \
+    _p1_global_state.asserts_total++; \
+    long long _exp = (long long)(expected); \
+    long long _act = (long long)p1_mem_alloc_count(); \
+    if (_exp != _act) { \
+        _p1_fail_int(__FILE__, __LINE__, "ASSERT_ALLOC_COUNT(" #expected ")", \
+                     _exp, _act, "igual a", __VA_ARGS__); \
+    } \
+} while (0)
+
+#define ASSERT_ALLOC_COUNT(expected) ASSERT_ALLOC_COUNT_MSG(expected, NULL)
+
+#define ASSERT_FREE_COUNT_MSG(expected, ...) do { \
+    _p1_global_state.asserts_total++; \
+    long long _exp = (long long)(expected); \
+    long long _act = (long long)p1_mem_free_count(); \
+    if (_exp != _act) { \
+        _p1_fail_int(__FILE__, __LINE__, "ASSERT_FREE_COUNT(" #expected ")", \
+                     _exp, _act, "igual a", __VA_ARGS__); \
+    } \
+} while (0)
+
+#define ASSERT_FREE_COUNT(expected) ASSERT_FREE_COUNT_MSG(expected, NULL)
+
+#define ASSERT_NO_LEAKS_MSG(...) do { \
+    _p1_global_state.asserts_total++; \
+    size_t _act_blocks = p1_mem_active_blocks(); \
+    if (_act_blocks > 0) { \
+        _p1_fail_no_leaks(__FILE__, __LINE__, "ASSERT_NO_LEAKS()", \
+                          _act_blocks, p1_mem_active_bytes(), __VA_ARGS__); \
+    } \
+} while (0)
+
+#define ASSERT_NO_LEAKS() ASSERT_NO_LEAKS_MSG(NULL)
+
+/* ========================================================================= */
+/* --- ASERCIONES CON PISTAS PEDAGÓGICAS CONTEXTUALES (QoL 4) -------------- */
+/* ========================================================================= */
+
+#define ASSERT_TRUE_HINT(cond, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_TRUE(cond); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_FALSE_HINT(cond, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_FALSE(cond); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_INT_EQ_HINT(expected, actual, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_INT_EQ(expected, actual); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_INT_NE_HINT(expected, actual, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_INT_NE(expected, actual); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_INT_LT_HINT(a, b, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_INT_LT(a, b); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_INT_LE_HINT(a, b, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_INT_LE(a, b); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_INT_GT_HINT(a, b, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_INT_GT(a, b); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_INT_GE_HINT(a, b, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_INT_GE(a, b); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_INT_BETWEEN_HINT(val, min_val, max_val, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_INT_BETWEEN(val, min_val, max_val); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_UINT_EQ_HINT(expected, actual, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_UINT_EQ(expected, actual); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_DOUBLE_EQ_HINT(expected, actual, epsilon, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_DOUBLE_EQ(expected, actual, epsilon); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_DOUBLE_NEAR_REL_HINT(expected, actual, rel_tol, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_DOUBLE_NEAR_REL(expected, actual, rel_tol); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_STR_EQ_HINT(expected, actual, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_STR_EQ(expected, actual); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_STR_NE_HINT(expected, actual, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_STR_NE(expected, actual); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_STR_CONTAINS_HINT(haystack, needle, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_STR_CONTAINS(haystack, needle); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_PTR_NULL_HINT(ptr, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_PTR_NULL(ptr); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_PTR_NOT_NULL_HINT(ptr, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_PTR_NOT_NULL(ptr); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_PTR_EQ_HINT(expected, actual, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_PTR_EQ(expected, actual); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_ARRAY_INT_EQ_HINT(expected, actual, length, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_ARRAY_INT_EQ(expected, actual, length); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_MEM_EQ_HINT(expected, actual, size, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_MEM_EQ(expected, actual, size); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_ALLOC_COUNT_HINT(expected, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_ALLOC_COUNT(expected); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_FREE_COUNT_HINT(expected, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_FREE_COUNT(expected); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_NO_LEAKS_HINT(hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_NO_LEAKS(); \
+    _p1_global_state.current_hint = NULL; \
 } while (0)
 
 #ifdef __cplusplus

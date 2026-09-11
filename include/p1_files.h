@@ -16,6 +16,82 @@
 extern "C" {
 #endif
 
+/* ========================================================================= */
+/* --- GESTOR DIDÁCTICO DE ARCHIVOS TEMPORALES (QoL 9) --------------------- */
+/* ========================================================================= */
+
+#define _P1_MAX_TEMP_FILES 64
+
+typedef struct {
+    char paths[_P1_MAX_TEMP_FILES][512];
+    size_t count;
+} _p1_temp_file_registry_t;
+
+static _p1_temp_file_registry_t _p1_temp_files = { { {0} }, 0 };
+
+static inline void p1_temp_files_cleanup(void) {
+    for (size_t i = 0; i < _p1_temp_files.count; i++) {
+        if (_p1_temp_files.paths[i][0] != '\0') {
+            remove(_p1_temp_files.paths[i]);
+            _p1_temp_files.paths[i][0] = '\0';
+        }
+    }
+    _p1_temp_files.count = 0;
+}
+
+#if _P1_HAS_POSIX
+extern int mkstemp(char *);
+extern ssize_t write(int, const void *, size_t);
+#endif
+
+static inline const char *p1_temp_file_create_binary(const char *prefix, const void *data, size_t size) {
+    if (_p1_temp_files.count >= _P1_MAX_TEMP_FILES) {
+        return NULL;
+    }
+    size_t idx = _p1_temp_files.count;
+    char *path = _p1_temp_files.paths[idx];
+    const char *pfx = (prefix != NULL && prefix[0] != '\0') ? prefix : "p1_test";
+
+#if _P1_HAS_POSIX
+    snprintf(path, 512, "/tmp/%s_XXXXXX", pfx);
+    int fd = mkstemp(path);
+    if (fd < 0) {
+        path[0] = '\0';
+        return NULL;
+    }
+    if (data != NULL && size > 0) {
+        ssize_t written = write(fd, data, size);
+        (void)written;
+    }
+    close(fd);
+#else
+    snprintf(path, 512, "tmp_%s_%u_%zu.dat", pfx, (unsigned int)rand(), idx);
+    FILE *fp = fopen(path, "wb");
+    if (!fp) {
+        path[0] = '\0';
+        return NULL;
+    }
+    if (data != NULL && size > 0) {
+        fwrite(data, 1, size, fp);
+    }
+    fclose(fp);
+#endif
+
+    _p1_temp_files.count++;
+    p1_register_cleanup_hook(p1_temp_files_cleanup);
+    return path;
+}
+
+static inline const char *p1_temp_file_create(const char *initial_content) {
+    size_t len = (initial_content != NULL) ? strlen(initial_content) : 0;
+    return p1_temp_file_create_binary("p1_temp", initial_content, len);
+}
+
+static inline const char *p1_temp_file_create_named(const char *prefix, const char *initial_content) {
+    size_t len = (initial_content != NULL) ? strlen(initial_content) : 0;
+    return p1_temp_file_create_binary(prefix, initial_content, len);
+}
+
 /* --- Funciones auxiliares internas para archivos ------------------------- */
 
 static inline void _p1_fail_file_exists(const char *file, int line, const char *expr,
@@ -251,6 +327,38 @@ static inline void _p1_fail_file_bin(const char *file, int line, const char *exp
 
 #define ASSERT_FILE_BINARY_EQ(expected_path, actual_path) \
     ASSERT_FILE_BINARY_EQ_MSG(expected_path, actual_path, NULL)
+
+/* --- Aserciones sobre Archivos con Pistas Pedagógicas (QoL 4) ------------ */
+
+#define ASSERT_FILE_EXISTS_HINT(filepath, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_FILE_EXISTS(filepath); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_FILE_NOT_EXISTS_HINT(filepath, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_FILE_NOT_EXISTS(filepath); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_FILE_EQ_HINT(expected_path, actual_path, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_FILE_EQ(expected_path, actual_path); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_FILE_CONTAINS_HINT(filepath, needle, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_FILE_CONTAINS(filepath, needle); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
+
+#define ASSERT_FILE_BINARY_EQ_HINT(expected_path, actual_path, hint) do { \
+    _p1_global_state.current_hint = (hint); \
+    ASSERT_FILE_BINARY_EQ(expected_path, actual_path); \
+    _p1_global_state.current_hint = NULL; \
+} while (0)
 
 #ifdef __cplusplus
 }

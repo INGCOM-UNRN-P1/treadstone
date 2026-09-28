@@ -1,6 +1,6 @@
 # Especificación e Interrogación de Análisis: `p1-companion`
 
-Companion App para orquestación, gestión de pruebas y generación de reportes analíticos sobre el framework [`p1_test.h`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/include/p1_test.h) y el ecosistema de cátedra de Programación 1 (UNRN).
+Companion App para orquestación, gestión de pruebas y generación de reportes analíticos sobre el framework [`p1_test.h`](include/p1_test.h) y el ecosistema de cátedra de Programación 1 (UNRN).
 
 > **Aviso de alcance:** Este documento contiene **únicamente especificación funcional, arquitectura de software e interrogación analítica de diseño**. No contiene código de implementación.
 
@@ -8,7 +8,7 @@ Companion App para orquestación, gestión de pruebas y generación de reportes 
 
 ## 1. Visión y Propósito
 
-[`p1_test.h`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/include/p1_test.h) opera como un motor de ejecución C11 puro en tiempo de compilación/ejecución nativa. Carece deliberadamente de capacidades de análisis estadístico, renderizado visual enriquecido, generación automática de esqueletos de prueba, integración directa con plataformas web (Moodle) y orquestación de mutaciones.
+[`p1_test.h`](include/p1_test.h) opera como un motor de ejecución C11 puro en tiempo de compilación/ejecución nativa. Carece deliberadamente de capacidades de análisis estadístico, renderizado visual enriquecido, generación automática de esqueletos de prueba, integración directa con plataformas web (Moodle) y orquestación de mutaciones.
 
 `p1-companion` es una herramienta CLI complementaria escrita en Python y gestionada mediante **UV**, cuyo propósito es desacoplar toda la lógica pesada de reportes, análisis pedagógico y automatización administrativa del código C de los alumnos.
 
@@ -19,7 +19,7 @@ Companion App para orquestación, gestión de pruebas y generación de reportes 
 ### 2.1. Configuración de Entorno
 * **Gestor de entorno:** [`uv`](https://docs.astral.sh/uv/) (Astral) como único motor de empaquetado, dependencias y ejecución de entornos virtuales (`uv venv`, `uv run`, `uv tool`).
 * **Runtime:** Python 3.11+.
-* **Metadatos de proyecto:** Definidos en [`pyproject.toml`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/pyproject.toml) bajo estándar PEP 621, usando `hatchling` como build backend.
+* **Metadatos de proyecto:** Definidos en `pyproject.toml` bajo estándar PEP 621, usando `hatchling` como build backend.
 
 ### 2.2. Modos de Ejecución Previstos
 1. **Modo Alumno (Cero configuración):**
@@ -86,7 +86,7 @@ companion/
 * **Subcomandos:**
   * `p1 scaffold init <modulo.h>`:
     * Inspecciona las firmas de funciones del archivo de cabecera especificado.
-    * Genera un archivo `tests/test_<modulo>.c` con la estructura canónica de [`p1_test.h`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/include/p1_test.h), registrando casos nominales, casos borde (punteros `NULL`, valores $0$) y hooks `BEFORE_EACH`/`AFTER_EACH`.
+    * Genera un archivo `tests/test_<modulo>.c` con la estructura canónica de [`p1_test.h`](include/p1_test.h), registrando casos nominales, casos borde (punteros `NULL`, valores $0$) y hooks `BEFORE_EACH`/`AFTER_EACH`.
 
 ### 3.4. Módulo `mutate`: Análisis de Robustez de Tests (Mutation Testing)
 * **Subcomandos:**
@@ -168,4 +168,4 @@ Antes de iniciar la codificación de cualquier componente de `p1-companion`, deb
 | **CP-02: Robustez ante Crashes** | Si el binario C sufre `SIGSEGV` abrupto, ¿el companion app reporta el fallo limpiamente sin colapsar el proceso Python? | Excepción capturada; reporte con exit code `1` y código de señal decodificado. |
 | **CP-03: Portabilidad POSIX** | ¿La herramienta funciona sin modificaciones en Debian, Ubuntu, Arch y Fedora? | Matrix de validación CI ejecutando sobre imágenes Docker de las 4 distribuciones. |
 | **CP-04: Aislamiento Opcional** | ¿El runner detecta la presencia de `bwrap` y se degrada controladamente si no está instalado? | Flag `--sandbox` arroja advertencia explicativa en lugar de abortar con traceback. |
-| **CP-05: Cero Dependencia Mandatoria** | ¿El framework C ([`p1_test.h`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/include/p1_test.h)) sigue siendo 100% operativo sin el companion app? | `make test` continúa funcionando de forma autónoma con sus reportes nativos. |
+| **CP-05: Cero Dependencia Mandatoria** | ¿El framework C ([`p1_test.h`](include/p1_test.h)) sigue siendo 100% operativo sin el companion app? | `make test` continúa funcionando de forma autónoma con sus reportes nativos. |

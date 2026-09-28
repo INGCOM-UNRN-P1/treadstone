@@ -8,7 +8,7 @@ Inspirada conceptualmente en el programa de operaciones de precisión (*The Bour
 
 ## 🎯 Características Principales (v2.0.0)
 
-* **Compilación Estándar y Estructurada:** Compila como biblioteca estática `libp1_test.a` en `build/` y raíz, compatible con el gestor [`manage.sh`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/manage.sh) e integrable vía [`library.spec`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/library.spec) y [`library.json`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/library.json).
+* **Compilación Estándar y Estructurada:** Compila como biblioteca estática `libp1_test.a` en `build/` y raíz, compatible con el gestor [`manage.sh`](manage.sh) e integrable vía [`library.spec`](library.spec) y [`library.json`](library.json).
 * **Persistencia ante Banderas de Preprocesador:** Las aserciones permanecen activas tanto bajo `-DNDEBUG` como bajo `-DDEBUG`.
 * **Aislamiento de Fallos y Rescate de Señales:**
   * Control de flujo no local (`setjmp`/`longjmp`): Un fallo de aserción interrumpe únicamente el test en curso sin terminar la suite completa.
@@ -42,17 +42,17 @@ Inspirada conceptualmente en el programa de operaciones de precisión (*The Bour
 
 ## 📁 Estructura del Repositorio
 
-* [`src/p1_test.c`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/src/p1_test.c): Implementación de símbolos compilables para `libp1_test.a`.
-* [`include/p1_test.h`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/include/p1_test.h): Cabecera principal del framework, macros de aserción y orquestador.
-* [`include/p1_arrays.h`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/include/p1_arrays.h): Comprobaciones sobre arreglos numéricos, ordenamiento y contención.
-* [`include/p1_files.h`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/include/p1_files.h): Aserciones sobre sistema de archivos (existencia, contenido de texto y volcados binarios).
-* [`include/p1_stdio.h`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/include/p1_stdio.h): Captura bidireccional y simulación de streams (`stdin`, `stdout`, `stderr`).
-* [`include/tda/contracts.h`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/include/tda/contracts.h): Macro-contratos de pre/postcondiciones e invariantes.
-* [`library.spec`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/library.spec) / [`library.json`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/library.json): Metadatos y definición de exportaciones para el gestor de dependencias.
-* [`manage.sh`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/manage.sh): Script de administración de la biblioteca (build, test, rename, info).
-* [`tests/`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/tests): Batería de autoverificación del framework (rescate de señales, fallos, timeouts, hooks y contratos).
-* [`ejemplos/proyecto_tp/`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/ejemplos/proyecto_tp): Proyecto completo de integración basado en `plantilla-TP`.
-* [`docs/manual_uso.md`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/docs/manual_uso.md): Referencia exhaustiva de la API con ejemplos.
+* [`src/p1_test.c`](src/p1_test.c): Implementación de símbolos compilables para `libp1_test.a`.
+* [`include/p1_test.h`](include/p1_test.h): Cabecera principal del framework, macros de aserción y orquestador.
+* [`include/p1_arrays.h`](include/p1_arrays.h): Comprobaciones sobre arreglos numéricos, ordenamiento y contención.
+* [`include/p1_files.h`](include/p1_files.h): Aserciones sobre sistema de archivos (existencia, contenido de texto y volcados binarios).
+* [`include/p1_stdio.h`](include/p1_stdio.h): Captura bidireccional y simulación de streams (`stdin`, `stdout`, `stderr`).
+* [`include/tda/contracts.h`](include/tda/contracts.h): Macro-contratos de pre/postcondiciones e invariantes.
+* [`library.spec`](library.spec) / [`library.json`](library.json): Metadatos y definición de exportaciones para el gestor de dependencias.
+* [`manage.sh`](manage.sh): Script de administración de la biblioteca (build, test, rename, info).
+* [`tests/`](tests): Batería de autoverificación del framework (rescate de señales, fallos, timeouts, hooks y contratos).
+* [`ejemplos/proyecto_tp/`](ejemplos/proyecto_tp): Proyecto completo de integración basado en `plantilla-TP`.
+* [`docs/manual_uso.md`](docs/manual_uso.md): Referencia exhaustiva de la API con ejemplos.
 
 ---
 

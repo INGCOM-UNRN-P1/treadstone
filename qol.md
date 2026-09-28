@@ -1,6 +1,6 @@
 # Propuestas de Mejoras Quality of Life (QoL) para `p1_test`
 
-Este documento detalla 60 mejoras funcionales y de experiencia de uso (QoL) para la suite de pruebas unitarias [`p1_test.h`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/include/p1_test.h) y sus módulos satélite ([`p1_arrays.h`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/include/p1_arrays.h), [`p1_files.h`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/include/p1_files.h), [`p1_stdio.h`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/include/p1_stdio.h)).
+Este documento detalla 60 mejoras funcionales y de experiencia de uso (QoL) para la suite de pruebas unitarias [`p1_test.h`](include/p1_test.h) y sus módulos satélite ([`p1_arrays.h`](include/p1_arrays.h), [`p1_files.h`](include/p1_files.h), [`p1_stdio.h`](include/p1_stdio.h)).
 
 ---
 
@@ -331,7 +331,7 @@ Este documento detalla 60 mejoras funcionales y de experiencia de uso (QoL) para
 ## 7. Propuesta de Toolchain Externo para el Framework de Testing
 
 ### 7.1. Justificación y Arquitectura Global
-[`p1_test.h`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/include/p1_test.h) resuelve la aserción y el reporte en tiempo de ejecución, pero no audita comportamientos indefinidos a nivel instrucción, desbordamientos de pila fuera de alcance de `longjmp`, cobertura real de ramas ni contención de procesos durante correcciones masivas.
+[`p1_test.h`](include/p1_test.h) resuelve la aserción y el reporte en tiempo de ejecución, pero no audita comportamientos indefinidos a nivel instrucción, desbordamientos de pila fuera de alcance de `longjmp`, cobertura real de ramas ni contención de procesos durante correcciones masivas.
 
 El toolchain externo rodea a la suite en cinco capas concéntricas:
 1. **Capa Estática:** Linter, analizador semántico y formateador de estilo.
@@ -563,7 +563,7 @@ jobs:
 
 ### 7.10. Targets de Integración en el `Makefile` Principal
 
-Para que el estudiante y los docentes utilicen el toolchain con una única interfaz, se añaden las siguientes metas estandarizadas al [`Makefile`](file:///home/mrtin/dev/p1/practicas/plantillas/lib_test/Makefile):
+Para que el estudiante y los docentes utilicen el toolchain con una única interfaz, se añaden las siguientes metas estandarizadas al [`Makefile`](Makefile):
 
 ```makefile
 # --- Toolchain Externo p1_test ---

@@ -547,6 +547,60 @@ static inline void _p1_fail_double_rel(const char *file, int line, const char *e
     _p1_trigger_failure();
 }
 
+/* Escribe un carácter de forma visible: \n, \t, \r, \0 y los no imprimibles como escape. Devuelve
+ * cuántas columnas ocupó, para ubicar el ^ debajo. */
+static inline int _p1_put_visible(char c) {
+    switch (c) {
+        case '\n': fputs("\\n", stderr); return 2;
+        case '\t': fputs("\\t", stderr); return 2;
+        case '\r': fputs("\\r", stderr); return 2;
+        default:
+            if ((unsigned char)c < 32 || (unsigned char)c == 127) {
+                fprintf(stderr, "\\x%02x", (unsigned char)c);
+                return 4;
+            }
+            fputc(c, stderr);
+            return 1;
+    }
+}
+
+/* QoL #1240: dónde difieren dos cadenas. Con textos largos o de varias líneas, «esperado» y
+ * «obtenido» completos no dicen qué mirar: se informa la primera posición distinta (índice, línea y
+ * columna), un fragmento de cada una alrededor con los invisibles a la vista y un ^ debajo. */
+static inline void _p1_print_str_diff(const char *expected, const char *actual) {
+    size_t i = 0, linea = 1, columna = 1;
+    while (expected[i] != '\0' && expected[i] == actual[i]) {
+        if (expected[i] == '\n') { linea++; columna = 1; } else { columna++; }
+        i++;
+    }
+    size_t len_e = strlen(expected), len_a = strlen(actual);
+    fprintf(stderr, "    diferencia: posición %zu (línea %zu, columna %zu)", i, linea, columna);
+    if (i == len_e && i < len_a) {
+        fprintf(stderr, ": al obtenido le sobran %zu caracteres al final\n", len_a - len_e);
+    } else if (i == len_a && i < len_e) {
+        fprintf(stderr, ": al obtenido le faltan %zu caracteres al final\n", len_e - len_a);
+    } else {
+        fputc('\n', stderr);
+    }
+    size_t desde = i > 12 ? i - 12 : 0;
+    const char *etiquetas[2] = {"esperado", "obtenido"};
+    const char *textos[2] = {expected, actual};
+    int columna_caret = 0;
+    for (int t = 0; t < 2; t++) {
+        size_t largo = t == 0 ? len_e : len_a;
+        fprintf(stderr, "      %s: %s", etiquetas[t], desde > 0 ? "…" : " ");
+        int ancho = 0;
+        for (size_t k = desde; k < largo && k < i + 20; k++) {
+            int w = _p1_put_visible(textos[t][k]);
+            if (k < i) ancho += w;
+        }
+        if (largo > i + 20) fputs("…", stderr);
+        fputc('\n', stderr);
+        if (t == 0) columna_caret = ancho;
+    }
+    fprintf(stderr, "                 %*s^\n", columna_caret, "");
+}
+
 static inline void _p1_fail_str(const char *file, int line, const char *expr,
                                 const char *expected, const char *actual,
                                 const char *desc, const char *fmt, ...) {
@@ -556,6 +610,9 @@ static inline void _p1_fail_str(const char *file, int line, const char *expr,
                 expected ? "\"" : "", expected ? expected : "NULL", expected ? "\"" : "");
         fprintf(stderr, "    obtenido: %s%s%s\n",
                 actual ? "\"" : "", actual ? actual : "NULL", actual ? "\"" : "");
+        if (expected != NULL && actual != NULL && strcmp(desc, "igual a") == 0) {
+            _p1_print_str_diff(expected, actual);
+        }
     }
     if (fmt != NULL) {
         va_list args;

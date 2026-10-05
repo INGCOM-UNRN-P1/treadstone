@@ -27,6 +27,7 @@ Inspirada conceptualmente en el programa de operaciones de precisión (*The Bour
   * Enteros sin signo: `ASSERT_UINT_EQ`, `ASSERT_UINT_NE`
   * Coma flotante: `ASSERT_DOUBLE_EQ`, `ASSERT_DOUBLE_NE` (tolerancia absoluta), `ASSERT_DOUBLE_NEAR_REL` (tolerancia relativa)
   * Cadenas de texto: `ASSERT_STR_EQ`, `ASSERT_STR_NE`, `ASSERT_STR_CASE_EQ` (insensible a mayúsculas), `ASSERT_STR_CONTAINS`
+    (cuando `ASSERT_STR_EQ` falla, informa la primera posición distinta con su línea y columna, un fragmento de cada cadena con `\n`, `\t` y `\r` a la vista y un `^` debajo, y cuántos caracteres faltan o sobran si una es prefijo de la otra)
   * Punteros: `ASSERT_PTR_NULL`, `ASSERT_PTR_NOT_NULL`, `ASSERT_PTR_EQ`, `ASSERT_PTR_NE`
   * Arreglos: `ASSERT_ARRAY_INT_EQ` (señala el índice y los valores discordantes)
   * Memoria binaria: `ASSERT_MEM_EQ` (con volcado hexadecimal de bytes en discrepancia)

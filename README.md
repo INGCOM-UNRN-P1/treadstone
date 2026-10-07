@@ -38,6 +38,7 @@ Inspirada conceptualmente en el programa de operaciones de precisión (*The Bour
   * `SKIP_TEST` y `TEST_SKIP` para pruebas pendientes o salteadas condicionalmente.
   * `RUN_TEST_SEEDED` para evaluaciones determinísticas con semilla de `rand()`.
 * **Auditoría de Memoria:** Verificación con Valgrind integrada (`make memcheck`).
+* **Fallos inyectados con holden:** `P1_FALLAR_EN(malloc, n)` hace fallar la llamada `n` (y las siguientes) a `malloc`, `fopen`, `fread`, `fwrite` o `fclose`. Los mocks los genera [holden](https://github.com/INGCOM-UNRN-P1/holden) y se desarman al terminar cada test; si holden no está instalado, el test se saltea con el motivo. p1_test no trae mocks propios: el aislamiento ante fallos de memoria y de archivos es de holden y vasquez.
 
 ---
 
@@ -78,6 +79,11 @@ make test-debug
 Auditar memoria con Valgrind:
 ```bash
 make memcheck
+```
+
+Probar `P1_FALLAR_EN` con los mocks de holden (se saltea si no está instalado):
+```bash
+make test-holden
 ```
 
 Probar el proyecto de integración de ejemplo:

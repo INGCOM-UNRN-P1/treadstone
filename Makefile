@@ -25,7 +25,7 @@ LIB_OBJS = $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(LIB_SRCS))
 TEST_SRCS = $(wildcard $(TESTS_DIR)/test_*.c)
 TEST_BINS = $(patsubst $(TESTS_DIR)/%.c, $(BUILD_DIR)/%, $(TEST_SRCS))
 
-.PHONY: all test test-ndebug test-debug test-ejemplo run-ejemplo memcheck clean
+.PHONY: all test test-ndebug test-debug test-holden test-ejemplo run-ejemplo memcheck clean
 
 all: $(LIB_A) $(ROOT_LIB) $(TEST_BINS) $(BUILD_DIR)/prueba
 
@@ -70,6 +70,19 @@ test-debug: $(LIB_A) | $(BUILD_DIR)
 	@echo "=== Compilando y ejecutando con -DDEBUG ==="
 	$(CC) $(CFLAGS) -DDEBUG tests/test_p1_test.c -o $(BUILD_DIR)/test_p1_test_debug -L$(BUILD_DIR) -l$(LIB_NAME)
 	./$(BUILD_DIR)/test_p1_test_debug
+
+# P1_FALLAR_EN con los mocks de holden, si está instalado
+HOLDEN_FUNCIONES = malloc fopen fread fwrite fclose
+test-holden: $(LIB_A) | $(BUILD_DIR)
+	@if command -v holden >/dev/null 2>&1; then \
+		echo "=== Compilando y ejecutando con los mocks de holden ==="; \
+		holden generate $(HOLDEN_FUNCIONES) -n 0 -o $(BUILD_DIR)/holden_mocks.c >/dev/null && \
+		$(CC) $(CFLAGS) -DP1_HOLDEN tests/test_p1_holden.c $(BUILD_DIR)/holden_mocks.c -o $(BUILD_DIR)/test_p1_holden_mocks \
+			-L$(BUILD_DIR) -l$(LIB_NAME) $(foreach f,$(HOLDEN_FUNCIONES),-Wl,--wrap=$(f)) && \
+		./$(BUILD_DIR)/test_p1_holden_mocks; \
+	else \
+		echo "holden no está instalado: se saltea test-holden"; \
+	fi
 
 # Probar el proyecto de ejemplo basado en plantilla-TP
 test-ejemplo: $(LIB_A) $(ROOT_LIB)

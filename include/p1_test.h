@@ -24,6 +24,7 @@
  * 16. Hooks de ciclo de vida (BEFORE_EACH, AFTER_EACH).
  * 17. Captura y aserción de salida estándar (ASSERT_STDOUT_EQ).
  * 18. Tests con semilla pseudoaleatoria fija (TEST_SEEDED, RUN_TEST_SEEDED).
+ * 19. Fallos inyectados con holden (P1_FALLAR_EN), solo si está instalado.
  */
 
 #ifndef P1_TEST_H
@@ -962,6 +963,46 @@ static inline void _p1_parse_args(int argc, char **argv) {
     } \
 } while (0)
 
+/* --- Fallos inyectados con holden (opcional) ------------------------------ */
+
+/**
+ * @def P1_FALLAR_EN(funcion, n)
+ * @brief Hace que la llamada n (y las siguientes) a @p funcion falle.
+ *
+ * Los mocks los genera holden: malloc, fopen, fread, fwrite y fclose. El
+ * Makefile de la plantilla compila con -DP1_HOLDEN y enlaza los mocks solo
+ * cuando holden está instalado y prueba.c usa esta macro; sin holden, el test
+ * se saltea con el motivo. Al terminar cada test, todos los mocks se desarman.
+ *
+ * @code
+ * TEST(crear_sin_memoria) {
+ *     P1_FALLAR_EN(malloc, 1);
+ *     ASSERT_PTR_NULL(vector_crear(10));
+ * }
+ * @endcode
+ */
+#ifdef P1_HOLDEN
+void holden_fallar_en_malloc(int n);
+void holden_fallar_en_fopen(int n);
+void holden_fallar_en_fread(int n);
+void holden_fallar_en_fwrite(int n);
+void holden_fallar_en_fclose(int n);
+#define P1_FALLAR_EN(funcion, n) holden_fallar_en_##funcion(n)
+#define _P1_HOLDEN_DESARMAR() do { \
+    holden_fallar_en_malloc(0); \
+    holden_fallar_en_fopen(0); \
+    holden_fallar_en_fread(0); \
+    holden_fallar_en_fwrite(0); \
+    holden_fallar_en_fclose(0); \
+} while (0)
+#else
+#define P1_FALLAR_EN(funcion, n) do { \
+    (void)(n); \
+    TEST_SKIP("holden no está instalado: no se puede hacer fallar " #funcion); \
+} while (0)
+#define _P1_HOLDEN_DESARMAR() ((void)0)
+#endif
+
 /**
  * @def TEST_SKIP(reason)
  * @brief Saltea la ejecución del test actual desde su propio cuerpo.
@@ -1014,6 +1055,7 @@ static inline void _p1_parse_args(int argc, char **argv) {
     } \
     _P1_RESTORE_SIGNALS(_p1_prev_segv, _p1_prev_fpe, _p1_prev_alrm); \
     _p1_run_all_cleanup_hooks(); \
+    _P1_HOLDEN_DESARMAR(); \
     _p1_emergency_capture_cleanup(); \
     clock_t _p1_end_t = clock(); \
     _p1_global_state.current_elapsed_ms = ((double)(_p1_end_t - _p1_start_t) / (double)CLOCKS_PER_SEC) * 1000.0; \

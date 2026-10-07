@@ -31,11 +31,9 @@ mostrar_ayuda() {
     echo -e "  ${VERDE}list${NC}                            Lista todas las librerías y ejercicios instalados."
     echo -e "  ${VERDE}build${NC}                           Compila todo el proyecto."
     echo -e "  ${VERDE}run [ejercicio]${NC}                 Ejecuta un ejercicio en particular o todos si no indicás nada."
-    echo -e "  ${VERDE}test [nombre]${NC}                   Ejecuta los tests de un ejercicio o librería específica,
-                                    o de todo el proyecto si no indicás nada.
-  ${VERDE}add-test <ejercicio> [nombre]${NC}   Genera un nuevo archivo de pruebas unitarias con p1_test.h.
-  ${VERDE}memcheck [ejercicio]${NC}            Ejecuta verificación de memoria con Valgrind en los tests.
-  ${VERDE}ripley [modulo]${NC}                 Audita con el motor Ripley (análisis AST, reglas P1 y"
+    echo -e "  ${VERDE}test [nombre]${NC}                   Ejecuta los tests de un ejercicio o librería específica,"
+    echo -e "                                    o de todo el proyecto si no indicás nada."
+    echo -e "  ${VERDE}ripley [modulo]${NC}                 Audita con el motor Ripley (análisis AST, reglas P1 y"
     echo -e "                                    AddressSanitizer) un ejercicio, librería o archivo .c,"
     echo -e "                                    o todo el proyecto si no indicás nada."
     echo -e "  ${VERDE}help${NC}                            Muestra este mensaje de ayuda."
@@ -65,7 +63,7 @@ LIB_DIRS := $(wildcard libs/*)
 # Detectar ejercicios en ejercicios/
 EX_DIRS := $(wildcard ejercicios/*)
 
-.PHONY: all librerias clean run test $(EX_DIRS) $(LIB_DIRS)
+.PHONY: all librerias clean run test memcheck fallos $(EX_DIRS) $(LIB_DIRS)
 
 all: librerias $(EX_DIRS)
 
@@ -94,21 +92,36 @@ run: librerias
 		fi; \
 	done
 
-test: librerias
-	@echo "Ejecutando pruebas de librerías..."
-	@for dir in $(LIB_DIRS); do \
+# Corre el objetivo $(1) en cada librería y ejercicio sin cortar en la primera
+# suite que falla: al final lista las que fallaron y sale con 1.
+define recorrer_suites
+	@fallas=""; \
+	for dir in $(LIB_DIRS) $(EX_DIRS); do \
 		if [ -f $$dir/Makefile ]; then \
-			echo "--- Probando librería $$dir ---"; \
-			$(MAKE) -C $$dir test || exit 1; \
+			echo "--- $(2) $$dir ---"; \
+			$(MAKE) -C $$dir $(1) </dev/null || fallas="$$fallas $$dir"; \
 		fi; \
-	done
-	@echo "Ejecutando pruebas de ejercicios..."
-	@for dir in $(EX_DIRS); do \
-		if [ -f $$dir/Makefile ]; then \
-			echo "--- Probando ejercicio $$dir ---"; \
-			$(MAKE) -C $$dir test || exit 1; \
-		fi; \
-	done
+	done; \
+	if [ -n "$$fallas" ]; then \
+		echo "Fallaron:$$fallas"; \
+		exit 1; \
+	fi; \
+	echo "Todas las suites terminaron bien."
+endef
+
+# Una librería que no compila no impide probar el resto (-k)
+test:
+	-@$(MAKE) --no-print-directory -k librerias
+	$(call recorrer_suites,test,Probando)
+
+memcheck:
+	-@$(MAKE) --no-print-directory -k librerias
+	$(call recorrer_suites,memcheck,Memcheck en)
+
+# Inyección de fallos con vasquez (cada suite la saltea si no está instalado)
+fallos:
+	-@$(MAKE) --no-print-directory -k librerias
+	$(call recorrer_suites,fallos,Fallos en)
 
 clean:
 	@echo "Limpiando todos los ejecutables, librerías estáticas y archivos objeto..."
@@ -126,56 +139,112 @@ EOF
 # Generar Makefile de librería
 escribir_makefile_lib() {
     local destino="$1"
-    cat << 'EOF' > "$destino/Makefile"
+    local dependencias_test="${2:-p1_test}"
+    cat << EOF > "$destino/Makefile"
 # Variables generales
 CC ?= gcc
-CFLAGS ?= -Wall -Wextra -g
+CFLAGS ?= -Wall -Wextra -std=c11 -pedantic -g
+
+# Dependencias para las pruebas (separadas por espacio)
+TEST_LIB_NAME ?= $dependencias_test
+# Solo las que están en libs/ (en TP1 no hay p1_test)
+TEST_LIBS ?= \$(foreach lib,\$(TEST_LIB_NAME),\$(if \$(wildcard \$(LIBS_DIR)/\$(lib)),\$(lib)))
+
+# Directorio raíz del proyecto para referenciar libs
+ROOT_DIR = ../..
+LIBS_DIR = \$(ROOT_DIR)/libs
+
+# Detección dinámica de los directorios de headers y biblioteca según el esquema (plano o estructurado)
+TEST_INCLUDE_DIRS = \$(foreach lib,\$(TEST_LIBS),\$(if \$(wildcard \$(LIBS_DIR)/\$(lib)/include),-I\$(LIBS_DIR)/\$(lib)/include -I\$(LIBS_DIR)/\$(lib),-I\$(LIBS_DIR)/\$(lib)))
+TEST_LIBRARY_DIRS = \$(foreach lib,\$(TEST_LIBS),\$(if \$(wildcard \$(LIBS_DIR)/\$(lib)/build),-L\$(LIBS_DIR)/\$(lib)/build,\$(if \$(wildcard \$(LIBS_DIR)/\$(lib)/lib),-L\$(LIBS_DIR)/\$(lib)/lib,-L\$(LIBS_DIR)/\$(lib))))
+TEST_LIBRARY = \$(addprefix -l,\$(TEST_LIBS))
+
+# Fallos inyectados (opcionales): P1_FALLAR_EN usa los mocks de holden solo si
+# holden está instalado y prueba.c la usa; "make fallos" corre vasquez si está.
+HOLDEN_FUNCIONES = malloc fopen fread fwrite fclose
+ifneq (\$(shell command -v holden 2>/dev/null),)
+ifneq (\$(shell grep -l P1_FALLAR_EN prueba.c 2>/dev/null),)
+TEST_CFLAGS += -DP1_HOLDEN
+TEST_EXTRA_OBJS += holden_mocks.o
+TEST_LDFLAGS += \$(foreach f,\$(HOLDEN_FUNCIONES),-Wl,--wrap=\$(f))
+endif
+endif
 
 # Archivos comunes, se autodetectan los .c y .h
-SRCS = $(filter-out prueba.c, $(wildcard *.c))
-HDRS = $(wildcard *.h)
+SRCS = \$(filter-out prueba.c holden_mocks.c, \$(wildcard *.c))
+HDRS = \$(wildcard *.h)
 
 # Nombre de la librería estática (se deduce del nombre de la carpeta)
-LIB_NAME := $(notdir $(CURDIR))
-LIBRARY_NAME = lib$(LIB_NAME).a
+LIB_NAME := \$(notdir \$(CURDIR))
+LIBRARY_NAME = lib\$(LIB_NAME).a
 
 # Archivos para tests
 TEST_TARGET = test_bin
-TEST_SRCS = $(SRCS) prueba.c
-TEST_OBJS = $(TEST_SRCS:.c=.o)
+TEST_SRCS = \$(SRCS) prueba.c
+TEST_OBJS = \$(TEST_SRCS:.c=.o)
 
 # Archivos objeto de la librería
-OBJS = $(SRCS:.c=.o)
+OBJS = \$(SRCS:.c=.o)
 
-# Compilar ambos: libreria y tests
-all: $(LIBRARY_NAME) $(TEST_TARGET)
+# Solo la librería: un prueba.c que no compila no frena a los ejercicios
+all: \$(LIBRARY_NAME)
 
 # Crear la librería estática .a
-$(LIBRARY_NAME): $(OBJS)
-	@echo "Generando librería estática $@"
-	ar rcs $@ $^
+\$(LIBRARY_NAME): \$(OBJS)
+	@echo "Generando librería estática \$@"
+	ar rcs \$@ \$^
 
 # Compilar el ejecutable de pruebas
-$(TEST_TARGET): $(TEST_OBJS)
-	@echo "Compilando $@"
-	$(CC) $(CFLAGS) -o $@ $^
+\$(TEST_TARGET): \$(TEST_OBJS) \$(TEST_EXTRA_OBJS)
+	@for lib in \$(TEST_LIBS); do \\
+		if [ -d "\$(LIBS_DIR)/\$\$lib" ] && [ -f "\$(LIBS_DIR)/\$\$lib/Makefile" ] && [ ! -f "\$(LIBS_DIR)/\$\$lib/lib\$\$lib.a" ] && [ ! -f "\$(LIBS_DIR)/\$\$lib/build/lib\$\$lib.a" ]; then \\
+			echo "Compilando dependencia \$\$lib..."; \\
+			\$(MAKE) -C "\$(LIBS_DIR)/\$\$lib" >/dev/null 2>&1 || exit 1; \\
+		fi; \\
+	done
+	@echo "Compilando \$@"
+	\$(CC) \$(CFLAGS) -o \$@ \$(TEST_OBJS) \$(TEST_EXTRA_OBJS) \$(TEST_LIBRARY_DIRS) \$(TEST_LIBRARY) \$(TEST_LDFLAGS)
+
+# Regla específica para compilar el archivo de pruebas con sus dependencias
+prueba.o: prueba.c \$(HDRS)
+	@echo "Compilando \$<"
+	\$(CC) \$(CFLAGS) \$(TEST_CFLAGS) \$(TEST_INCLUDE_DIRS) -c \$<
 
 # Regla genérica para compilar archivos .o a partir de .c
-%.o: %.c $(HDRS)
-	@echo "Compilando $<"
-	$(CC) $(CFLAGS) -c $<
+%.o: %.c \$(HDRS)
+	@echo "Compilando \$<"
+	\$(CC) \$(CFLAGS) -c \$<
+
+# Mocks de holden para P1_FALLAR_EN
+holden_mocks.c:
+	holden generate \$(HOLDEN_FUNCIONES) -n 0 -o \$@ >/dev/null
+
+# Inyección de fallos con vasquez
+.PHONY: fallos
+fallos: \$(TEST_TARGET)
+	@if command -v vasquez >/dev/null 2>&1; then \\
+		vasquez check ./\$(TEST_TARGET); \\
+	else \\
+		echo "vasquez no está instalado: se saltea la inyección de fallos"; \\
+	fi
 
 # Ejecutar las pruebas
 .PHONY: test
-test: $(TEST_TARGET)
+test: \$(TEST_TARGET)
 	@echo "Probando librería..."
-	./$(TEST_TARGET)
+	./\$(TEST_TARGET)
+
+# Verificación con Valgrind
+.PHONY: memcheck
+memcheck: \$(TEST_TARGET)
+	@echo "Verificando con Valgrind..."
+	valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ./\$(TEST_TARGET)
 
 # Limpiar archivos objeto y ejecutables
 .PHONY: clean
 clean:
 	@echo "Limpiando..."
-	rm -f *.o $(LIBRARY_NAME) $(TEST_TARGET)
+	rm -f *.o holden_mocks.c \$(LIBRARY_NAME) \$(TEST_TARGET)
 
 # Incluir personalizaciones locales si existen
 -include local.mk
@@ -189,7 +258,7 @@ escribir_makefile_ex() {
     cat << EOF > "$destino/Makefile"
 # Variables generales
 CC ?= gcc
-CFLAGS ?= -Wall -Wextra -pedantic -g
+CFLAGS ?= -Wall -Wextra -pedantic -std=c11 -g
 
 # Nombres de las librerías que usa este ejercicio (separadas por espacio)
 LIB_NAME ?= $dependencias
@@ -204,8 +273,25 @@ LIBRARY = \$(addprefix -l,\$(LIB_NAME))
 INCLUDE_DIRS = \$(foreach lib,\$(LIB_NAME),\$(if \$(wildcard \$(ROOT_DIR)/libs/\$(lib)/include),-I\$(ROOT_DIR)/libs/\$(lib)/include,-I\$(ROOT_DIR)/libs/\$(lib)))
 LIBRARY_DIRS = \$(foreach lib,\$(LIB_NAME),\$(if \$(wildcard \$(ROOT_DIR)/libs/\$(lib)/build),-L\$(ROOT_DIR)/libs/\$(lib)/build,\$(if \$(wildcard \$(ROOT_DIR)/libs/\$(lib)/lib),-L\$(ROOT_DIR)/libs/\$(lib)/lib,-L\$(ROOT_DIR)/libs/\$(lib))))
 
+# p1_test para las pruebas, si está en libs/ y no figura ya en LIB_NAME
+TEST_LIBS ?= \$(filter-out \$(LIB_NAME),\$(notdir \$(wildcard \$(ROOT_DIR)/libs/p1_test)))
+TEST_INCLUDE_DIRS = \$(foreach lib,\$(TEST_LIBS),-I\$(ROOT_DIR)/libs/\$(lib)/include -I\$(ROOT_DIR)/libs/\$(lib))
+TEST_LIBRARY_DIRS = \$(foreach lib,\$(TEST_LIBS),-L\$(ROOT_DIR)/libs/\$(lib)/build -L\$(ROOT_DIR)/libs/\$(lib))
+TEST_LIBRARY = \$(addprefix -l,\$(TEST_LIBS))
+
+# Fallos inyectados (opcionales): P1_FALLAR_EN usa los mocks de holden solo si
+# holden está instalado y prueba.c la usa; "make fallos" corre vasquez si está.
+HOLDEN_FUNCIONES = malloc fopen fread fwrite fclose
+ifneq (\$(shell command -v holden 2>/dev/null),)
+ifneq (\$(shell grep -l P1_FALLAR_EN prueba.c 2>/dev/null),)
+TEST_CFLAGS += -DP1_HOLDEN
+TEST_EXTRA_OBJS += holden_mocks.o
+TEST_LDFLAGS += \$(foreach f,\$(HOLDEN_FUNCIONES),-Wl,--wrap=\$(f))
+endif
+endif
+
 # Archivos comunes (código fuente y cabeceras del ejercicio)
-SRCS = \$(filter-out main.c prueba.c, \$(wildcard *.c))
+SRCS = \$(filter-out main.c prueba.c holden_mocks.c, \$(wildcard *.c))
 HDRS = \$(wildcard *.h)
 
 # Objetivo del programa principal
@@ -226,13 +312,31 @@ all: \$(PROG_TARGET) \$(TEST_TARGET)
 	\$(CC) \$(CFLAGS) -o \$@ \$(PROG_OBJS) \$(SRCS:.c=.o) \$(LIBRARY_DIRS) \$(LIBRARY)
 
 # Compilar el ejecutable de pruebas
-\$(TEST_TARGET): \$(TEST_OBJS) \$(SRCS:.c=.o)
-	\$(CC) \$(CFLAGS) -o \$@ \$(TEST_OBJS) \$(SRCS:.c=.o) \$(LIBRARY_DIRS) \$(LIBRARY)
+\$(TEST_TARGET): \$(TEST_OBJS) \$(SRCS:.c=.o) \$(TEST_EXTRA_OBJS)
+	\$(CC) \$(CFLAGS) -o \$@ \$(TEST_OBJS) \$(SRCS:.c=.o) \$(TEST_EXTRA_OBJS) \$(LIBRARY_DIRS) \$(TEST_LIBRARY_DIRS) \$(LIBRARY) \$(TEST_LIBRARY) \$(TEST_LDFLAGS)
+
+# El archivo de pruebas ve también los headers de p1_test
+prueba.o: prueba.c \$(HDRS)
+	@echo "Compilando \$<"
+	\$(CC) \$(CFLAGS) \$(TEST_CFLAGS) \$(INCLUDE_DIRS) \$(TEST_INCLUDE_DIRS) -c \$<
 
 # Regla genérica para compilar archivos .o a partir de .c
 %.o: %.c \$(HDRS)
 	@echo "Compilando \$<"
 	\$(CC) \$(CFLAGS) \$(INCLUDE_DIRS) -c \$<
+
+# Mocks de holden para P1_FALLAR_EN
+holden_mocks.c:
+	holden generate \$(HOLDEN_FUNCIONES) -n 0 -o \$@ >/dev/null
+
+# Inyección de fallos con vasquez
+.PHONY: fallos
+fallos: \$(TEST_TARGET)
+	@if command -v vasquez >/dev/null 2>&1; then \\
+		vasquez check ./\$(TEST_TARGET); \\
+	else \\
+		echo "vasquez no está instalado: se saltea la inyección de fallos"; \\
+	fi
 
 # Ejecutar el programa principal
 .PHONY: run
@@ -246,11 +350,17 @@ test: \$(TEST_TARGET)
 	@echo "Ejecutando pruebas"
 	./\$(TEST_TARGET)
 
+# Verificación con Valgrind
+.PHONY: memcheck
+memcheck: \$(TEST_TARGET)
+	@echo "Ejecutando pruebas con Valgrind"
+	valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ./\$(TEST_TARGET)
+
 # Limpiar archivos objeto y ejecutables
 .PHONY: clean
 clean:
 	@echo "Limpiando archivos objeto y ejecutables..."
-	rm -f *.o \$(PROG_TARGET) \$(TEST_TARGET)
+	rm -f *.o holden_mocks.c \$(PROG_TARGET) \$(TEST_TARGET)
 
 # Incluir personalizaciones locales si existen
 -include local.mk
@@ -274,8 +384,16 @@ sync_project() {
                 if [ -f "$dir/library.spec" ] || [ -f "$dir/library.json" ] || [ -d "$dir/src" ] || [ -d "$dir/include" ]; then
                     echo -e "Librería estructurada '$lib_nombre' -> ${AMARILLO}Se conserva su Makefile original${NC}"
                 else
-                    escribir_makefile_lib "$dir"
-                    echo -e "Librería plana '$lib_nombre' -> ${VERDE}Makefile Sincronizado${NC}"
+                    local dep_test="p1_test"
+                    if [ -f "$dir/Makefile" ]; then
+                        local dep_ext
+                        dep_ext=$( (grep -E '^(TEST_LIB_NAME|TEST_LIBS) \?=' "$dir/Makefile" || true) | head -n1 | cut -d'=' -f2- | tr -d '\r' | xargs)
+                        if [ -n "$dep_ext" ]; then
+                            dep_test="$dep_ext"
+                        fi
+                    fi
+                    escribir_makefile_lib "$dir" "$dep_test"
+                    echo -e "Librería plana '$lib_nombre' -> ${VERDE}Makefile Sincronizado${NC} (tests: ${AMARILLO}${dep_test:-ninguna}${NC})"
                 fi
             fi
         done
@@ -303,6 +421,52 @@ sync_project() {
         done
     fi
     echo -e "${VERDE}¡Sincronización completada! Ya podés usar 'make' en cualquier nivel del proyecto.${NC}"
+}
+
+# Escribir prueba.c: con p1_test si está en libs/, si no con assert
+# Uso: escribir_prueba <archivo> <titulo> [headers...]
+escribir_prueba() {
+    local archivo="$1"
+    local titulo="$2"
+    shift 2
+    {
+        echo "/*"
+        echo " * Pruebas de $titulo"
+        echo " */"
+        if [ -d "$LIBS_DIR/p1_test" ]; then
+            echo "#include \"p1_test.h\""
+            for header in "$@"; do
+                echo "#include \"$header.h\""
+            done
+            echo ""
+            echo "TEST(prueba_inicial)"
+            echo "{"
+            echo "    // Agregá tus aserciones acá (ASSERT_INT_EQ, ASSERT_STR_EQ, ...)"
+            echo "    ASSERT_TRUE(1);"
+            echo "}"
+            echo ""
+            echo "int main(int argc, char **argv)"
+            echo "{"
+            echo "    TEST_SUITE_BEGIN_ARGS(\"$titulo\", argc, argv);"
+            echo "    RUN_TEST(prueba_inicial);"
+            echo "    return TEST_REPORT();"
+            echo "}"
+        else
+            echo "#include <assert.h>"
+            echo "#include <stdio.h>"
+            for header in "$@"; do
+                echo "#include \"$header.h\""
+            done
+            echo ""
+            echo "int main(void)"
+            echo "{"
+            echo "    printf(\"Corriendo pruebas de $titulo...\\n\");"
+            echo "    // Agregá tus aserciones acá"
+            echo "    printf(\"¡Pruebas de $titulo pasaron con éxito!\\n\");"
+            echo "    return 0;"
+            echo "}"
+        fi
+    } > "$archivo"
 }
 
 # Agregar Librería
@@ -390,17 +554,7 @@ EOF
 EOF
 
         # Crear archivo de pruebas prueba.c
-        cat << EOF > "$destino/prueba.c"
-#include "$nombre.h"
-#include <assert.h>
-#include <stdio.h>
-
-int main(void) {
-    printf("Corriendo pruebas de la librería '$nombre'...\n");
-    printf("¡Pruebas de '$nombre' pasaron con éxito!\n");
-    return 0;
-}
-EOF
+        escribir_prueba "$destino/prueba.c" "la librería '$nombre'" "$nombre"
 
         # Sincronizar el Makefile principal
         escribir_makefile_raiz
@@ -480,24 +634,8 @@ add_ex() {
     } > "$destino/main.c"
 
     # Crear prueba.c para tests del ejercicio
-    {
-        echo "/*"
-        echo " * Pruebas del Ejercicio: $nombre"
-        echo " */"
-        echo "#include <stdio.h>"
-        echo "#include <assert.h>"
-        echo ""
-        for lib in $dependencias; do
-            echo "#include \"$lib.h\""
-        done
-        echo ""
-        echo "int main(void) {"
-        echo "    printf(\"Corriendo pruebas para el ejercicio '$nombre'...\\n\");"
-        echo "    // Agregá tus aserciones acá"
-        echo "    printf(\"¡Pruebas de '$nombre' pasaron con éxito!\\n\");"
-        echo "    return 0;"
-        echo "}"
-    } > "$destino/prueba.c"
+    # shellcheck disable=SC2086
+    escribir_prueba "$destino/prueba.c" "el ejercicio '$nombre'" $dependencias
 
     # Sincronizar el Makefile principal
     escribir_makefile_raiz
@@ -673,66 +811,6 @@ ripley_project() {
     fi
 }
 
-# Agregar nuevo archivo de test con esqueleto p1_test
-add_test() {
-    if [ -z "${1:-}" ]; then
-        echo -e "${ROJO}Error: Falta indicar el ejercicio.${NC}"
-        echo "Uso: ./tp.sh add-test <ejercicio> [nombre_test]"
-        exit 1
-    fi
-    local ex_nombre="$1"
-    local test_nombre="${2:-prueba}"
-    local destino="$EX_DIR/$ex_nombre"
-
-    if [ ! -d "$destino" ]; then
-        echo -e "${ROJO}Error: El ejercicio '$ex_nombre' no existe en '$destino'.${NC}"
-        exit 1
-    fi
-
-    local archivo="$destino/${test_nombre}.c"
-    if [ -f "$archivo" ]; then
-        echo -e "${AMARILLO}El archivo de pruebas '$archivo' ya existe.${NC}"
-        exit 1
-    fi
-
-    cat << 'EOF' > "$archivo"
-/**
- * @file prueba.c
- * @brief Suite de pruebas unitarias generada con p1_test.
- */
-
-#include <stdio.h>
-#include "p1_test.h"
-
-TEST(primer_caso_de_prueba) {
-    ASSERT_TRUE(1 == 1);
-}
-
-int main(int argc, char **argv) {
-    TEST_SUITE_BEGIN_ARGS("Suite de Pruebas", argc, argv);
-    RUN_TEST(primer_caso_de_prueba);
-    return TEST_REPORT();
-}
-EOF
-    echo -e "${VERDE}Archivo de pruebas creado con éxito en: $archivo${NC}"
-}
-
-# Verificación de memoria con Valgrind
-memcheck_project() {
-    echo -e "${AZUL}Ejecutando verificación con Valgrind en los tests...${NC}"
-    if [ -n "${1:-}" ]; then
-        local destino="$EX_DIR/$1"
-        if [ -d "$destino" ] && [ -f "$destino/Makefile" ]; then
-            make -C "$destino" memcheck
-        else
-            echo -e "${ROJO}Error: Ejercicio '$1' no encontrado o sin Makefile.${NC}"
-            exit 1
-        fi
-    else
-        make memcheck
-    fi
-}
-
 # Parsear comandos principales
 if [ $# -lt 1 ]; then
     mostrar_ayuda
@@ -769,12 +847,6 @@ case "$cmd" in
         ;;
     test)
         test_project "$@"
-        ;;
-    add-test)
-        add_test "$@"
-        ;;
-    memcheck)
-        memcheck_project "$@"
         ;;
     ripley)
         ripley_project "$@"

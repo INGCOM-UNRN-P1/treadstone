@@ -1,4 +1,4 @@
-# Makefile Principal Dinámico para Proyecto Ejemplo Basado en Plantilla-TP
+# Makefile Principal Dinámico
 
 # Detectar librerías en libs/
 LIB_DIRS := $(wildcard libs/*)
@@ -6,7 +6,7 @@ LIB_DIRS := $(wildcard libs/*)
 # Detectar ejercicios en ejercicios/
 EX_DIRS := $(wildcard ejercicios/*)
 
-.PHONY: all librerias clean run test $(EX_DIRS) $(LIB_DIRS)
+.PHONY: all librerias clean run test memcheck fallos $(EX_DIRS) $(LIB_DIRS)
 
 all: librerias $(EX_DIRS)
 
@@ -35,37 +35,36 @@ run: librerias
 		fi; \
 	done
 
-test: librerias
-	@echo "Ejecutando pruebas de librerías..."
-	@for dir in $(LIB_DIRS); do \
+# Corre el objetivo $(1) en cada librería y ejercicio sin cortar en la primera
+# suite que falla: al final lista las que fallaron y sale con 1.
+define recorrer_suites
+	@fallas=""; \
+	for dir in $(LIB_DIRS) $(EX_DIRS); do \
 		if [ -f $$dir/Makefile ]; then \
-			echo "--- Probando librería $$dir ---"; \
-			$(MAKE) -C $$dir test || exit 1; \
+			echo "--- $(2) $$dir ---"; \
+			$(MAKE) -C $$dir $(1) </dev/null || fallas="$$fallas $$dir"; \
 		fi; \
-	done
-	@echo "Ejecutando pruebas de ejercicios..."
-	@for dir in $(EX_DIRS); do \
-		if [ -f $$dir/Makefile ]; then \
-			echo "--- Probando ejercicio $$dir ---"; \
-			$(MAKE) -C $$dir test || exit 1; \
-		fi; \
-	done
+	done; \
+	if [ -n "$$fallas" ]; then \
+		echo "Fallaron:$$fallas"; \
+		exit 1; \
+	fi; \
+	echo "Todas las suites terminaron bien."
+endef
 
-memcheck: librerias
-	@echo "Ejecutando verificación con Valgrind en librerías..."
-	@for dir in $(LIB_DIRS); do \
-		if [ -f $$dir/Makefile ]; then \
-			echo "--- Memcheck en $$dir ---"; \
-			$(MAKE) -C $$dir memcheck || exit 1; \
-		fi; \
-	done
-	@echo "Ejecutando verificación con Valgrind en ejercicios..."
-	@for dir in $(EX_DIRS); do \
-		if [ -f $$dir/Makefile ]; then \
-			echo "--- Memcheck en $$dir ---"; \
-			$(MAKE) -C $$dir memcheck || exit 1; \
-		fi; \
-	done
+# Una librería que no compila no impide probar el resto (-k)
+test:
+	-@$(MAKE) --no-print-directory -k librerias
+	$(call recorrer_suites,test,Probando)
+
+memcheck:
+	-@$(MAKE) --no-print-directory -k librerias
+	$(call recorrer_suites,memcheck,Memcheck en)
+
+# Inyección de fallos con vasquez (cada suite la saltea si no está instalado)
+fallos:
+	-@$(MAKE) --no-print-directory -k librerias
+	$(call recorrer_suites,fallos,Fallos en)
 
 clean:
 	@echo "Limpiando todos los ejecutables, librerías estáticas y archivos objeto..."
@@ -75,4 +74,5 @@ clean:
 		fi; \
 	done
 
+# Incluir personalizaciones locales si existen
 -include local.mk

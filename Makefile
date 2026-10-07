@@ -25,7 +25,7 @@ LIB_OBJS = $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(LIB_SRCS))
 TEST_SRCS = $(wildcard $(TESTS_DIR)/test_*.c)
 TEST_BINS = $(patsubst $(TESTS_DIR)/%.c, $(BUILD_DIR)/%, $(TEST_SRCS))
 
-.PHONY: all test test-ndebug test-debug test-holden test-ejemplo run-ejemplo memcheck clean
+.PHONY: all test test-ndebug test-debug test-holden ejemplo-p1_test test-ejemplo run-ejemplo memcheck clean
 
 all: $(LIB_A) $(ROOT_LIB) $(TEST_BINS) $(BUILD_DIR)/prueba
 
@@ -84,18 +84,26 @@ test-holden: $(LIB_A) | $(BUILD_DIR)
 		echo "holden no está instalado: se saltea test-holden"; \
 	fi
 
+# El ejemplo usa los headers y fuentes actuales de p1_test (no una copia
+# versionada que se desactualiza): se copian antes de compilarlo.
+EJEMPLO_P1_TEST = $(EJEMPLO_DIR)/libs/p1_test
+ejemplo-p1_test:
+	@mkdir -p $(EJEMPLO_P1_TEST)/include $(EJEMPLO_P1_TEST)/src
+	@cp $(INC_DIR)/*.h $(EJEMPLO_P1_TEST)/include/
+	@cp $(SRC_DIR)/*.c $(EJEMPLO_P1_TEST)/src/
+
 # Probar el proyecto de ejemplo basado en plantilla-TP
-test-ejemplo: $(LIB_A) $(ROOT_LIB)
+test-ejemplo: $(LIB_A) $(ROOT_LIB) ejemplo-p1_test
 	@echo "=== Probando proyecto de ejemplo TP ==="
 	$(MAKE) -C $(EJEMPLO_DIR) test
 
 # Ejecutar el programa del proyecto de ejemplo
-run-ejemplo: $(LIB_A) $(ROOT_LIB)
+run-ejemplo: $(LIB_A) $(ROOT_LIB) ejemplo-p1_test
 	@echo "=== Ejecutando programa del proyecto de ejemplo TP ==="
 	$(MAKE) -C $(EJEMPLO_DIR) run
 
 # Verificación de memoria con Valgrind (QoL 17)
-memcheck: $(BUILD_DIR)/test_p1_test $(BUILD_DIR)/prueba
+memcheck: $(BUILD_DIR)/test_p1_test $(BUILD_DIR)/prueba ejemplo-p1_test
 	@echo "=== Verificando suite p1_test con Valgrind ==="
 	valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ./$(BUILD_DIR)/test_p1_test
 	@echo "=== Verificando suite prueba.c con Valgrind ==="

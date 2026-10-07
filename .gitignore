@@ -8,3 +8,7 @@ test_bin
 .vscode/
 .idea/
 .DS_Store
+
+# Copia de include/ y src/ que `make test-ejemplo` pone en el ejemplo
+ejemplos/proyecto_tp/libs/p1_test/include/
+ejemplos/proyecto_tp/libs/p1_test/src/

@@ -20,6 +20,7 @@ Inspirada conceptualmente en el programa de operaciones de precisión (*The Bour
   * `-q, --quiet`: Salida compacta en una sola línea (`.` para acierto, `F` para fallo, `S` para omitido).
   * `-t, --timeout <seg>`: Configura el tiempo límite en segundos por prueba.
   * `--tap`: Genera salida compatible con Test Anything Protocol v13.
+  * `--md-report <ruta>`: Genera un reporte detallado consolidado en formato Markdown (GFM).
   * `--no-color`: Desactiva secuencias de escape ANSI.
 * **Catálogo de Aserciones Didácticas:**
   * Booleanas: `ASSERT_TRUE`, `ASSERT_FALSE`
@@ -29,9 +30,15 @@ Inspirada conceptualmente en el programa de operaciones de precisión (*The Bour
   * Cadenas de texto: `ASSERT_STR_EQ`, `ASSERT_STR_NE`, `ASSERT_STR_CASE_EQ` (insensible a mayúsculas), `ASSERT_STR_CONTAINS`
     (cuando `ASSERT_STR_EQ` falla, informa la primera posición distinta con su línea y columna, un fragmento de cada cadena con `\n`, `\t` y `\r` a la vista y un `^` debajo, y cuántos caracteres faltan o sobran si una es prefijo de la otra)
   * Punteros: `ASSERT_PTR_NULL`, `ASSERT_PTR_NOT_NULL`, `ASSERT_PTR_EQ`, `ASSERT_PTR_NE`
-  * Arreglos: `ASSERT_ARRAY_INT_EQ` (señala el índice y los valores discordantes)
+  * Arreglos: `ASSERT_ARRAY_INT_EQ`, `ASSERT_ARRAY_INT_SORTED_ASC`, `ASSERT_ARRAY_INT_SORTED_DESC`, `ASSERT_ARRAY_DOUBLE_EQ`, `ASSERT_STR_ARRAY_EQ`, `ASSERT_ARRAY_INT_CONTAINS`, `ASSERT_ARRAY_INT_NOT_CONTAINS`
   * Memoria binaria: `ASSERT_MEM_EQ` (con volcado hexadecimal de bytes en discrepancia)
-  * Salida estándar: `ASSERT_STDOUT_EQ` (captura y compara streams de salida de `printf`)
+  * Tracking de Heap en Runtime: `ASSERT_ALLOC_COUNT`, `ASSERT_FREE_COUNT`, `ASSERT_NO_LEAKS` (cero fugas de bloques)
+  * Entrada y Salida Estándar: `ASSERT_STDOUT_EQ`, `ASSERT_STDERR_EQ`, `ASSERT_STDIO_EQ`, `ASSERT_STDOUT_CONTAINS`, `ASSERT_STDERR_CONTAINS`, `ASSERT_STDIN_CONSUMED`
+  * Pistas Pedagógicas Contextuales: Variantes `ASSERT_*_HINT(..., "pista")` que orientan al estudiante únicamente ante fallos.
+* **Diseño por Contrato en TDAs (`include/tda/contracts.h`):**
+  * `TDA_REQUIERE` (precondición), `TDA_GARANTIZA` (postcondición), `TDA_INVARIANTE` (invariante de representación).
+  * Cero costo de runtime con `-DNDEBUG`.
+  * Validación agnóstica de estructuras enlazadas y prevención de cuelgues por ciclos con `tda_tiene_ciclo`.
 * **Ciclo de Vida y Organización:**
   * `BEFORE_EACH` y `AFTER_EACH` para inicialización y limpieza por test.
   * `SUBCASE` para estructurar fases dentro de una misma prueba.

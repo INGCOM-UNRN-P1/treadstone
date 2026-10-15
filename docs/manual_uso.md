@@ -56,6 +56,7 @@ Al inicializar la suite con `TEST_SUITE_BEGIN_ARGS("Nombre", argc, argv);`, el b
 | `-q`, `--quiet` | *(ninguno)* | Modo compacto: emite `.` por acierto, `F` por fallo y `S` por salteado. |
 | `-t`, `--timeout` | `<segundos>` | Tiempo límite máximo por test antes de abortar por timeout (por defecto: 5 s; 0 = desactivado). |
 | `--tap` | *(ninguno)* | Emite resultados en formato estándar Test Anything Protocol v13. |
+| `--md-report` | `<ruta>` | Genera un reporte detallado consolidado en formato Markdown (GFM). |
 | `--no-color` | *(ninguno)* | Desactiva colores ANSI. |
 | `-h`, `--help` | *(ninguno)* | Imprime el menú de ayuda y finaliza la ejecución. |
 
@@ -72,13 +73,18 @@ Al inicializar la suite con `TEST_SUITE_BEGIN_ARGS("Nombre", argc, argv);`, el b
 
 # Generar reporte TAP para herramientas de corrección automática
 ./test_bin --tap
+
+# Exportar informe consolidado en Markdown para GitHub Classroom
+./test_bin --md-report informe_pruebas.md
 ```
 
 ---
 
 ## 4. Catálogo Completo de Aserciones
 
-Todas las aserciones admiten una variante con sufijo `_MSG` para anexar explicaciones con formato estilo `printf`.
+Todas las aserciones admiten dos familias de variantes ortogonales:
+* **Sufijo `_MSG`:** permite anexar un mensaje contextual personalizado con formato estilo `printf` (`ASSERT_*_MSG(..., "formato %d", valor)`).
+* **Sufijo `_HINT`:** permite suministrar una pista pedagógica (`ASSERT_*_HINT(..., "pista orientativa")`). La pista solo se emite en la terminal si la aserción falla, orientando al estudiante sin revelar la solución directa.
 
 ### 4.1. Booleanas
 * `ASSERT_TRUE(cond)` / `ASSERT_TRUE_MSG(cond, fmt, ...)`
@@ -160,6 +166,24 @@ TEST(prueba_salida_consola) {
 
 ### 4.8. Fallo Explícito
 * `ASSERT_FAIL("mensaje", ...)`: Provoca inmediatamente el fallo de la prueba.
+
+### 4.9. Control de Memoria Dinámica en Runtime (Tracking de Heap)
+`p1_test` instrumenta internamente las funciones de asignación dinámica de memoria para auditar fugas y balance de llamadas en tiempo de ejecución:
+* `ASSERT_ALLOC_COUNT(esperado)` / `_MSG` / `_HINT`: Comprueba la cantidad total acumulada de reservas dinámicas (`malloc`, `calloc`).
+* `ASSERT_FREE_COUNT(esperado)` / `_MSG` / `_HINT`: Comprueba la cantidad total de liberaciones (`free`).
+* `ASSERT_NO_LEAKS()` / `_MSG` / `_HINT`: Verifica que no existan bloques huérfanos sin liberar (`active_blocks == 0`). Ante fugas, reporta el número exacto de bloques y bytes retenidos en el *heap*.
+
+```c
+TEST(prueba_balance_memoria) {
+    int *buffer = malloc(10 * sizeof(int));
+    ASSERT_PTR_NOT_NULL(buffer);
+    ASSERT_ALLOC_COUNT(1);
+
+    free(buffer);
+    ASSERT_FREE_COUNT(1);
+    ASSERT_NO_LEAKS();
+}
+```
 
 ---
 
@@ -255,29 +279,125 @@ El gestor `./tp.sh` del Trabajo Práctico incluye soporte nativo para `p1_test`:
 
 ## 8. Cabeceras Modulares Avanzadas
 
-Para mantener el núcleo ligero, las aserciones avanzadas se distribuyen en cabeceras especializadas:
+Para mantener el núcleo ligero y desacoplado, las aserciones y utilidades avanzadas se distribuyen en cabeceras modulares satélite:
 
 ### 8.1. `p1_arrays.h` — Arreglos, Ordenamiento y Búsqueda
-Incluye validación avanzada de colecciones:
-* `ASSERT_ARRAY_INT_SORTED_ASC(arr, len)`: Comprueba orden no decreciente.
-* `ASSERT_ARRAY_INT_SORTED_DESC(arr, len)`: Comprueba orden no creciente.
-* `ASSERT_ARRAY_DOUBLE_EQ(exp, act, len, eps)`: Compara arreglos reales con tolerancia.
-* `ASSERT_STR_ARRAY_EQ(exp, act)`: Compara arreglos de strings terminados en `NULL` (`char*[]`).
-* `ASSERT_ARRAY_INT_CONTAINS(arr, len, val)`: Verifica presencia de un elemento.
-* `ASSERT_ARRAY_INT_NOT_CONTAINS(arr, len, val)`: Verifica ausencia de un elemento.
+Proporciona comprobaciones tipadas sobre colecciones y vectores en memoria contigua:
+* `ASSERT_ARRAY_INT_EQ(esperado, obtenido, longitud)`: Compara arreglos de enteros elemento a elemento indicando el primer índice con discrepancia.
+* `ASSERT_ARRAY_INT_SORTED_ASC(arr, longitud)`: Valida que el arreglo esté ordenado en forma no decreciente ($a[i] \le a[i+1]$).
+* `ASSERT_ARRAY_INT_SORTED_DESC(arr, longitud)`: Valida orden no creciente ($a[i] \ge a[i+1]$).
+* `ASSERT_ARRAY_DOUBLE_EQ(esperado, obtenido, longitud, epsilon)`: Compara arreglos reales bajo tolerancia absoluta.
+* `ASSERT_STR_ARRAY_EQ(esperado, obtenido)`: Compara arreglos de cadenas (`char *[]`) terminados en `NULL`.
+* `ASSERT_ARRAY_INT_CONTAINS(arr, longitud, valor)`: Verifica que `valor` pertenezca al arreglo.
+* `ASSERT_ARRAY_INT_NOT_CONTAINS(arr, longitud, valor)`: Verifica que `valor` no pertenezca al arreglo.
 
-### 8.2. `p1_files.h` — Archivos de Texto y Binarios
-Validación de persistencia y archivos en disco:
-* `ASSERT_FILE_EXISTS("ruta/archivo.txt")`: Comprueba existencia y lectura.
-* `ASSERT_FILE_NOT_EXISTS("ruta/archivo.txt")`: Comprueba ausencia.
-* `ASSERT_FILE_EQ("esperado.txt", "obtenido.txt")`: Comparación línea a línea indicando la primera diferencia.
-* `ASSERT_FILE_CONTAINS("salida.log", "PALABRA_CLAVE")`: Búsqueda de contenido en archivo.
-* `ASSERT_FILE_BINARY_EQ("exp.bin", "act.bin")`: Comparación binaria byte a byte con volcado hexadecimal.
+```c
+#include "p1_arrays.h"
+
+int datos[] = {10, 20, 30, 40};
+ASSERT_ARRAY_INT_SORTED_ASC(datos, 4);
+ASSERT_ARRAY_INT_CONTAINS(datos, 4, 30);
+```
+
+### 8.2. `p1_files.h` — Archivos de Texto, Binarios y Archivos Temporales
+Permite evaluar persistencia en disco y gestionar archivos de prueba sin ensuciar el repositorio:
+* **Aserciones sobre archivos:**
+  * `ASSERT_FILE_EXISTS("ruta/archivo.txt")`: Comprueba existencia y legibilidad en disco.
+  * `ASSERT_FILE_NOT_EXISTS("ruta/archivo.txt")`: Comprueba ausencia del archivo.
+  * `ASSERT_FILE_EQ("esperado.txt", "obtenido.txt")`: Comparación de contenido línea a línea, señalando la primera discrepancia.
+  * `ASSERT_FILE_CONTAINS("salida.log", "PALABRA_CLAVE")`: Búsqueda de patrones en archivos de texto.
+  * `ASSERT_FILE_BINARY_EQ("exp.bin", "act.bin")`: Comparación binaria byte a byte con volcado hexadecimal del primer desvío.
+* **Gestión de archivos temporales (Fixtures en `/tmp`):**
+  * `p1_temp_file_create(contenido_texto)`: Crea un archivo temporal con el contenido provisto y retorna su ruta.
+  * `p1_temp_file_create_named(prefijo, contenido_texto)`: Crea un archivo temporal con un prefijo personalizado en el nombre.
+  * `p1_temp_file_create_binary(prefijo, datos, bytes)`: Crea un archivo temporal con una carga binaria arbitraria.
+  * `p1_temp_files_cleanup()`: Elimina automáticamente todos los archivos temporales creados por el módulo.
+
+```c
+#include "p1_files.h"
+
+TEST(prueba_persistencia) {
+    const char *ruta_tmp = p1_temp_file_create("id,nombre\n1,Ana\n2,Luis\n");
+    ASSERT_FILE_EXISTS(ruta_tmp);
+    ASSERT_FILE_CONTAINS(ruta_tmp, "Ana");
+    p1_temp_files_cleanup();
+}
+```
 
 ### 8.3. `p1_stdio.h` — Mocks y Simulación de Entrada/Salida
-Pruebas para funciones interactivas de consola:
-* `ASSERT_STDIO_EQ(funcion_interactiva(), "entrada\n", "salida esperada\n")`: Simula `stdin`, captura `stdout` y evalúa en un solo paso.
-* `p1_mock_stdin_feed("10 20\n")` y `p1_mock_stdin_restore()`: Inyección directa para `scanf` / `fgets`.
-* `ASSERT_STDIN_CONSUMED()`: Valida que la función haya procesado toda la entrada provista (llegó a `EOF`).
-* `ASSERT_STDERR_EQ(llamada(), "mensaje error")`: Captura y verificación de `stderr`.
+Herramientas para probar programas interactivos de consola y funciones que leen de `stdin` o imprimen en `stdout`/`stderr`:
+* **Aserciones integradas:**
+  * `ASSERT_STDIO_EQ(sentencia, "entrada\n", "salida esperada\n")`: Inyecta la entrada en `stdin`, ejecuta la sentencia y valida la salida capturada en `stdout` en un solo paso.
+  * `ASSERT_STDOUT_EQ(sentencia, "salida esperada\n")`: Captura y valida `stdout`.
+  * `ASSERT_STDERR_EQ(sentencia, "error esperado\n")`: Captura y valida `stderr`.
+  * `ASSERT_STDOUT_CONTAINS(sentencia, "subcadena")`: Verifica que la salida de consola contenga el texto indicado.
+  * `ASSERT_STDERR_CONTAINS(sentencia, "subcadena")`: Verifica que el flujo de error contenga el texto indicado.
+  * `ASSERT_STDIN_CONSUMED()`: Asegura que la función probada haya leído y consumido la totalidad de los datos provistos en `stdin` (alcanzando `EOF`).
+* **Primitivas de control de flujos paso a paso:**
+  * `p1_mock_stdin_feed(cadena)` / `p1_mock_stdin_restore()`: Inyección y restauración manual para `scanf` o `fgets`.
+  * `p1_capture_stdout_begin()` / `p1_capture_stdout_end(buffer, max_len)`: Captura explícita de `stdout`.
+  * `p1_capture_stderr_begin()` / `p1_capture_stderr_end(buffer, max_len)`: Captura explícita de `stderr`.
+
+```c
+#include "p1_stdio.h"
+
+void pedir_y_saludar(void) {
+    char nombre[32];
+    if (scanf("%31s", nombre) == 1) {
+        printf("Hola, %s!\n", nombre);
+    }
+}
+
+TEST(prueba_interactiva) {
+    ASSERT_STDIO_EQ(pedir_y_saludar(), "Martin\n", "Hola, Martin!\n");
+    ASSERT_STDIN_CONSUMED();
+}
+```
+
+### 8.4. `tda/contracts.h` — Framework de Invariantes y Contratos en Runtime (C11)
+Diseñado para la enseñanza y verificación formal de **Tipos de Datos Abstractos (TDA)** mediante el paradigma de *Diseño por Contrato*:
+
+* **Primitivas de Contrato:**
+  * `TDA_REQUIERE(condicion)`: **Precondición**. Valida que los argumentos recibidos cumplan los requisitos de la interfaz pública (por ejemplo, puntero no nulo o índice válido). Si se viola, imprime el archivo, línea y condición en `stderr` y aborta la prueba.
+  * `TDA_GARANTIZA(condicion)`: **Postcondición**. Valida las promesas que la función hace sobre su resultado o sobre el estado final antes de retornar.
+  * `TDA_INVARIANTE(estructura, validador)`: **Invariante de representación**. Invoca la función validadora interna (de firma `static bool validador(const tipo_t *)`) para certificar que el TDA permanece en un estado consistente. Cada evaluación exitosa incrementa un contador interno.
+  * `tda_contratos_evaluados()`: Retorna el número de invariantes evaluados en la unidad de traducción, permitiendo a la suite de pruebas verificar que el estudiante no omitió las comprobaciones de invariantes.
+
+* **Inmunidad en Producción (`-DNDEBUG`):**
+  Al compilar con `-DNDEBUG`, todas las macros se expanden a `((void)0)`, asegurando **cero sobrecosto en tiempo de ejecución**.
+
+* **Validación Estructural de Nodos Enlazados:**
+  Proporciona utilidades genéricas independientes del tipo de dato concreto:
+  * `tda_siguiente(nodo, offset_sig)`: Devuelve el puntero al nodo sucesor leyendo el offset del miembro `siguiente` sin violar el encapsulamiento.
+  * `tda_tiene_ciclo(primero, offset_sig, max_nodos)`: Algoritmo acotado que detecta ciclos o punteros circulares en listas enlazadas, previniendo cuelgues o bucles infinitos en la suite de pruebas si la estructura del estudiante está corrupta.
+
+```c
+#include "tda/contracts.h"
+
+// En tiempo de compilación: struct completo solo en el .c (tipo opaco)
+struct lista {
+    struct nodo *cabeza;
+    size_t cantidad;
+};
+
+static bool lista_es_valida(const lista_t *l) {
+    if (l == NULL) return false;
+    // Verifica ausencia de ciclos en la cadena de nodos
+    if (tda_tiene_ciclo(l->cabeza, offsetof(struct nodo, siguiente), 1000)) {
+        return false;
+    }
+    return true;
+}
+
+bool lista_insertar(lista_t *l, int valor) {
+    TDA_REQUIERE(l != NULL);
+    TDA_INVARIANTE(l, lista_es_valida);
+
+    // ... inserción ...
+
+    TDA_GARANTIZA(l->cantidad > 0);
+    TDA_INVARIANTE(l, lista_es_valida);
+    return true;
+}
+```
 

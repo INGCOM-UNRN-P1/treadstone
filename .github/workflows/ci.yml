@@ -1,0 +1,49 @@
+name: CI
+
+# Las pruebas de la librería (make test) en Linux y en el entorno de los estudiantes en Windows
+# (MSYS2 UCRT64, el mismo toolchain que instala entorno) (N-LIBRERIAS-03).
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux (gcc)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc make valgrind
+
+      - name: Pruebas
+        run: make test
+
+      - name: Pruebas con -DNDEBUG (las aserciones de p1_test no dependen de assert)
+        run: make test-ndebug
+
+      - name: Memoria (valgrind)
+        run: make memcheck
+
+  windows:
+    name: Windows (MSYS2 UCRT64)
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          install: make mingw-w64-ucrt-x86_64-gcc
+
+      - name: Pruebas
+        run: make test

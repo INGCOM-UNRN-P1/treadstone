@@ -772,7 +772,7 @@ static inline void _p1_restore_signals(void (*prev_segv)(int), void (*prev_fpe)(
 
 #define _P1_SETUP_SIGNALS(s, f, a) (void)0
 #define _P1_RESTORE_SIGNALS(s, f, a) (void)0
-#define _P1_SIG_VARS int _p1_sig_unused = 0
+#define _P1_SIG_VARS (void)0
 #define _P1_SETJMP(env) setjmp(env)
 
 #endif

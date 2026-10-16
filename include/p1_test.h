@@ -416,6 +416,7 @@ static inline void _p1_trigger_failure(void) {
     _p1_global_state.asserts_failed++;
     _p1_global_state.current_test_failed = 1;
     if (_p1_global_state.in_test_scope) {
+        fprintf(stdout, "[TRACE: before longjmp]\n"); fflush(stdout);
         longjmp(_p1_global_state.jump_env, 1);
     }
 }
@@ -577,6 +578,7 @@ static inline int _p1_put_visible(char c) {
  * «obtenido» completos no dicen qué mirar: se informa la primera posición distinta (índice, línea y
  * columna), un fragmento de cada una alrededor con los invisibles a la vista y un ^ debajo. */
 static inline void _p1_print_str_diff(const char *expected, const char *actual) {
+    fprintf(stdout, "[TRACE: entered _p1_print_str_diff]\n"); fflush(stdout);
     size_t i = 0, linea = 1, columna = 1;
     while (expected[i] != '\0' && expected[i] == actual[i]) {
         if (expected[i] == '\n') { linea++; columna = 1; } else { columna++; }
@@ -608,11 +610,13 @@ static inline void _p1_print_str_diff(const char *expected, const char *actual) 
         if (t == 0) columna_caret = ancho;
     }
     fprintf(stderr, "                 %*s^\n", columna_caret, "");
+    fprintf(stdout, "[TRACE: finished _p1_print_str_diff]\n"); fflush(stdout);
 }
 
 static inline void _p1_fail_str(const char *file, int line, const char *expr,
                                 const char *expected, const char *actual,
                                 const char *desc, const char *fmt, ...) {
+    fprintf(stdout, "[TRACE: entered _p1_fail_str]\n"); fflush(stdout);
     _p1_print_fail_header(file, line, expr);
     if (!_p1_global_state.quiet_mode) {
         fprintf(stderr, "    esperado: %s %s%s%s\n", desc,

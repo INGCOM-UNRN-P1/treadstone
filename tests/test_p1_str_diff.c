@@ -28,16 +28,11 @@ static int contiene(const char *texto, const char *buscado) {
 }
 
 int main(int argc, char **argv) {
-#ifdef _WIN32
-    char ruta[] = "build/p1_str_diff_XXXXXX";
-#else
-    char ruta[] = "/tmp/p1_str_diff_XXXXXX";
-#endif
-    int fd = mkstemp(ruta);
-    if (fd < 0) return 1;
+    FILE *tmp = tmpfile();
+    if (!tmp) return 1;
     fflush(stderr);
-    int original = dup(STDERR_FILENO);
-    dup2(fd, STDERR_FILENO);
+    int original = dup(fileno(stderr));
+    dup2(fileno(tmp), fileno(stderr));
 
     TEST_SUITE_BEGIN_ARGS("Diferencia de cadenas", argc, argv);
     RUN_TEST(difiere_un_espacio);
@@ -45,12 +40,13 @@ int main(int argc, char **argv) {
     int codigo = TEST_REPORT();
 
     fflush(stderr);
-    dup2(original, STDERR_FILENO);
+    dup2(original, fileno(stderr));
+    close(original);
+
     char salida[8192] = {0};
-    FILE *f = fopen(ruta, "r");
-    size_t leidos = f ? fread(salida, 1, sizeof(salida) - 1, f) : 0;
-    if (f) fclose(f);
-    unlink(ruta);
+    rewind(tmp);
+    size_t leidos = fread(salida, 1, sizeof(salida) - 1, tmp);
+    fclose(tmp);
     salida[leidos] = '\0';
 
     int ok = codigo == 1 && _p1_global_state.tests_failed == 2

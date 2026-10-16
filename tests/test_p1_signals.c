@@ -5,6 +5,7 @@
 
 #include "p1_test.h"
 
+#if _P1_HAS_POSIX
 /* Test que provoca SIGSEGV (acceso a puntero nulo) */
 TEST(test_crash_sigsegv) {
     SUBCASE("Subcaso con puntero inválido");
@@ -27,6 +28,7 @@ TEST(test_recuperacion_posterior) {
     ASSERT_INT_EQ(100, 50 + 50);
     ASSERT_TRUE(1 == 1);
 }
+#endif
 
 int main(int argc, char **argv) {
 #if !_P1_HAS_POSIX

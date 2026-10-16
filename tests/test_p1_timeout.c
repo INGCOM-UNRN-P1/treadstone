@@ -5,6 +5,7 @@
 
 #include "p1_test.h"
 
+#if _P1_HAS_POSIX
 /* Test que entra en un bucle infinito intencional */
 TEST(test_bucle_infinito) {
     volatile int x = 0;
@@ -22,6 +23,7 @@ TEST(test_recuperacion_post_timeout) {
     ASSERT_INT_EQ(42, 40 + 2);
     ASSERT_TRUE(1 == 1);
 }
+#endif
 
 int main(int argc, char **argv) {
 #if !_P1_HAS_POSIX

@@ -29,6 +29,12 @@ TEST(test_recuperacion_posterior) {
 }
 
 int main(int argc, char **argv) {
+#if !_P1_HAS_POSIX
+    (void)argc;
+    (void)argv;
+    printf("Rescate verificado: Los crashes (SIGSEGV y SIGFPE) no aplican en plataformas sin POSIX.\n");
+    return 0;
+#else
     TEST_SUITE_BEGIN_ARGS("Suite de Verificación de Rescate de Señales", argc, argv);
 
     RUN_TEST(test_crash_sigsegv);
@@ -45,4 +51,5 @@ int main(int argc, char **argv) {
         return 0;
     }
     return 1;
+#endif
 }

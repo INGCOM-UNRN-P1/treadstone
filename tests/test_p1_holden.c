@@ -9,6 +9,12 @@
 
 #include "p1_test.h"
 
+#ifdef _WIN32
+#define DEV_NULL "NUL"
+#else
+#define DEV_NULL "/dev/null"
+#endif
+
 TEST(test_malloc_falla_en_la_segunda)
 {
     P1_FALLAR_EN(malloc, 2);
@@ -22,7 +28,7 @@ TEST(test_malloc_falla_en_la_segunda)
 TEST(test_fopen_falla)
 {
     P1_FALLAR_EN(fopen, 1);
-    FILE *archivo = fopen("/dev/null", "r");
+    FILE *archivo = fopen(DEV_NULL, "r");
     ASSERT_PTR_NULL(archivo);
 }
 
@@ -31,7 +37,7 @@ TEST(test_desarmado_entre_tests)
     void *bloque = malloc(8);
     ASSERT_PTR_NOT_NULL(bloque);
     free(bloque);
-    FILE *archivo = fopen("/dev/null", "r");
+    FILE *archivo = fopen(DEV_NULL, "r");
     ASSERT_PTR_NOT_NULL(archivo);
     fclose(archivo);
 }

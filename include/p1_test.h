@@ -54,6 +54,14 @@ extern int dup(int);
 extern int dup2(int, int);
 extern int close(int);
 extern int fileno(FILE *);
+#elif defined(_WIN32)
+#include <io.h>
+#define _P1_HAS_POSIX 0
+extern int isatty(int);
+extern int dup(int);
+extern int dup2(int, int);
+extern int close(int);
+extern int fileno(FILE *);
 #else
 #define _P1_HAS_POSIX 0
 #endif

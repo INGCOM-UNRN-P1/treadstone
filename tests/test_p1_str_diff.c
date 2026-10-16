@@ -28,7 +28,11 @@ static int contiene(const char *texto, const char *buscado) {
 }
 
 int main(int argc, char **argv) {
+#ifdef _WIN32
+    char ruta[] = "build/p1_str_diff_XXXXXX";
+#else
     char ruta[] = "/tmp/p1_str_diff_XXXXXX";
+#endif
     int fd = mkstemp(ruta);
     if (fd < 0) return 1;
     fflush(stderr);

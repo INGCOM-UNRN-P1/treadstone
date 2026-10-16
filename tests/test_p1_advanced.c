@@ -66,9 +66,15 @@ TEST(archivos_texto_y_binarios) {
     char f1_path[128];
     char f2_path[128];
     char f_inexistente[128];
+#ifdef _WIN32
+    snprintf(f1_path, sizeof(f1_path), "build/p1_test_f1_%d.txt", (int)getpid());
+    snprintf(f2_path, sizeof(f2_path), "build/p1_test_f2_%d.txt", (int)getpid());
+    snprintf(f_inexistente, sizeof(f_inexistente), "build/p1_test_no_existe_%d.txt", (int)getpid());
+#else
     snprintf(f1_path, sizeof(f1_path), "/tmp/p1_test_f1_%d.txt", (int)getpid());
     snprintf(f2_path, sizeof(f2_path), "/tmp/p1_test_f2_%d.txt", (int)getpid());
     snprintf(f_inexistente, sizeof(f_inexistente), "/tmp/p1_test_no_existe_%d.txt", (int)getpid());
+#endif
 
     FILE *f1 = fopen(f1_path, "w");
     FILE *f2 = fopen(f2_path, "w");

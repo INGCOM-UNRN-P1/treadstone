@@ -46,4 +46,6 @@ jobs:
           install: make mingw-w64-ucrt-x86_64-gcc
 
       - name: Pruebas
-        run: make test
+        run: |
+          mkdir -p /d/tmp /tmp 2>/dev/null || true
+          make test

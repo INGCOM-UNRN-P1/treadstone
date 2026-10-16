@@ -63,7 +63,11 @@ TEST(prueba_aserciones_arreglos) {
 /* --- Pruebas de operaciones sobre archivos --- */
 TEST(prueba_aserciones_archivos) {
     char f_path[128];
+#ifdef _WIN32
+    snprintf(f_path, sizeof(f_path), "build/p1_test_prueba_%d.txt", (int)getpid());
+#else
     snprintf(f_path, sizeof(f_path), "/tmp/p1_test_prueba_%d.txt", (int)getpid());
+#endif
 
     FILE *f = fopen(f_path, "w");
     ASSERT_PTR_NOT_NULL(f);

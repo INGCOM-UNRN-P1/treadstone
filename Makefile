@@ -1,6 +1,6 @@
 # Makefile de la librería p1_test
 CC ?= gcc
-CFLAGS ?= -Wall -Wextra -Werror -std=c11 -pedantic -Iinclude
+CFLAGS ?= -Wall -Wextra -Werror -std=c11 -pedantic -Iinclude -fno-omit-frame-pointer
 AR ?= ar
 ARFLAGS ?= rcs
 

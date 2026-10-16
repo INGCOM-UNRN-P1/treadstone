@@ -18,15 +18,11 @@
 #include "p1_test.h"
 
 TEST(difiere_un_espacio) {
-    fprintf(stdout, "[TRACE: entered test difiere_un_espacio]\n"); fflush(stdout);
     ASSERT_STR_EQ("Nombre: Ana\nEdad: 20\n", "Nombre: Ana\nEdad:  20\n");
-    fprintf(stdout, "[TRACE: finished test difiere_un_espacio]\n"); fflush(stdout);
 }
 
 TEST(le_faltan_caracteres) {
-    fprintf(stdout, "[TRACE: entered test le_faltan_caracteres]\n"); fflush(stdout);
     ASSERT_STR_EQ("hola mundo", "hola");
-    fprintf(stdout, "[TRACE: finished test le_faltan_caracteres]\n"); fflush(stdout);
 }
 
 static int contiene(const char *texto, const char *buscado) {

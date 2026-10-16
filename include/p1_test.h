@@ -66,6 +66,16 @@ extern int fileno(FILE *);
 #define _P1_HAS_POSIX 0
 #endif
 
+#if defined(_WIN32) && defined(__GNUC__)
+typedef void *_p1_jmp_buf_t[5];
+#define _P1_SETJMP(env) __builtin_setjmp(env)
+#define _P1_LONGJMP(env, val) __builtin_longjmp(env, 1)
+#else
+typedef jmp_buf _p1_jmp_buf_t;
+#define _P1_SETJMP(env) setjmp(env)
+#define _P1_LONGJMP(env, val) longjmp(env, val)
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -117,7 +127,7 @@ typedef struct {
     p1_hook_fn_t cleanup_hook;      /**< Hook de limpieza automática (descriptores, mocks) */
 
     /* Control de flujo no local estándar C11 */
-    jmp_buf jump_env;
+    _p1_jmp_buf_t jump_env;
     int has_jump_env;
 } p1_test_state_t;
 
@@ -416,8 +426,7 @@ static inline void _p1_trigger_failure(void) {
     _p1_global_state.asserts_failed++;
     _p1_global_state.current_test_failed = 1;
     if (_p1_global_state.in_test_scope) {
-        fprintf(stdout, "[TRACE: before longjmp]\n"); fflush(stdout);
-        longjmp(_p1_global_state.jump_env, 1);
+        _P1_LONGJMP(_p1_global_state.jump_env, 1);
     }
 }
 
@@ -578,7 +587,6 @@ static inline int _p1_put_visible(char c) {
  * «obtenido» completos no dicen qué mirar: se informa la primera posición distinta (índice, línea y
  * columna), un fragmento de cada una alrededor con los invisibles a la vista y un ^ debajo. */
 static inline void _p1_print_str_diff(const char *expected, const char *actual) {
-    fprintf(stdout, "[TRACE: entered _p1_print_str_diff]\n"); fflush(stdout);
     size_t i = 0, linea = 1, columna = 1;
     while (expected[i] != '\0' && expected[i] == actual[i]) {
         if (expected[i] == '\n') { linea++; columna = 1; } else { columna++; }
@@ -610,13 +618,11 @@ static inline void _p1_print_str_diff(const char *expected, const char *actual) 
         if (t == 0) columna_caret = ancho;
     }
     fprintf(stderr, "                 %*s^\n", columna_caret, "");
-    fprintf(stdout, "[TRACE: finished _p1_print_str_diff]\n"); fflush(stdout);
 }
 
 static inline void _p1_fail_str(const char *file, int line, const char *expr,
                                 const char *expected, const char *actual,
                                 const char *desc, const char *fmt, ...) {
-    fprintf(stdout, "[TRACE: entered _p1_fail_str]\n"); fflush(stdout);
     _p1_print_fail_header(file, line, expr);
     if (!_p1_global_state.quiet_mode) {
         fprintf(stderr, "    esperado: %s %s%s%s\n", desc,
@@ -751,7 +757,7 @@ static void _p1_signal_handler(int sig) {
     _p1_global_state.current_test_failed = 1;
 
     if (_p1_global_state.in_test_scope) {
-        longjmp(_p1_global_state.jump_env, 1);
+        _P1_LONGJMP(_p1_global_state.jump_env, 1);
     } else {
         exit(1);
     }
@@ -778,14 +784,12 @@ static inline void _p1_restore_signals(void (*prev_segv)(int), void (*prev_fpe)(
 #define _P1_SETUP_SIGNALS(s, f, a) _p1_setup_signals(&(s), &(f), &(a))
 #define _P1_RESTORE_SIGNALS(s, f, a) _p1_restore_signals(s, f, a)
 #define _P1_SIG_VARS void (*_p1_prev_segv)(int) = NULL; void (*_p1_prev_fpe)(int) = NULL; void (*_p1_prev_alrm)(int) = NULL
-#define _P1_SETJMP(env) setjmp(env)
 
 #else
 
 #define _P1_SETUP_SIGNALS(s, f, a) (void)0
 #define _P1_RESTORE_SIGNALS(s, f, a) (void)0
 #define _P1_SIG_VARS (void)0
-#define _P1_SETJMP(env) setjmp(env)
 
 #endif
 
@@ -1025,7 +1029,7 @@ void holden_fallar_en_fclose(int n);
         printf("%s(salteado: %s)%s ", _p1_clr(_P1_CLR_YELLOW), reason, _p1_clr(_P1_CLR_RESET)); \
     } \
     if (_p1_global_state.in_test_scope) { \
-        longjmp(_p1_global_state.jump_env, 2); \
+        _P1_LONGJMP(_p1_global_state.jump_env, 2); \
     } \
 } while (0)
 

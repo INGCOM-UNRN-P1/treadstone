@@ -32,6 +32,13 @@ TEST(test_fopen_falla)
     ASSERT_PTR_NULL(archivo);
 }
 
+TEST(test_programa_un_fallo_sin_usarlo)
+{
+    /* Deja armado un fallo en la primera reserva: el test siguiente no lo tiene que heredar. */
+    P1_FALLAR_EN(malloc, 1);
+    ASSERT_TRUE(1);
+}
+
 TEST(test_desarmado_entre_tests)
 {
     void *bloque = malloc(8);
@@ -48,17 +55,18 @@ int main(int argc, char **argv)
 
     RUN_TEST(test_malloc_falla_en_la_segunda);
     RUN_TEST(test_fopen_falla);
+    RUN_TEST(test_programa_un_fallo_sin_usarlo);
     RUN_TEST(test_desarmado_entre_tests);
 
     int exit_code = TEST_REPORT();
 #ifdef P1_HOLDEN
-    if (exit_code == 0 && _p1_global_state.tests_passed == 3)
+    if (exit_code == 0 && _p1_global_state.tests_passed == 4)
     {
         printf("Comportamiento verificado: los mocks de holden fallan y se desarman.\n");
         return 0;
     }
 #else
-    if (exit_code == 0 && _p1_global_state.tests_skipped == 2 && _p1_global_state.tests_passed == 1)
+    if (exit_code == 0 && _p1_global_state.tests_skipped == 3 && _p1_global_state.tests_passed == 1)
     {
         printf("Comportamiento verificado: sin holden, los tests con P1_FALLAR_EN se saltean.\n");
         return 0;

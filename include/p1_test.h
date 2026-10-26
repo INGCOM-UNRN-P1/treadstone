@@ -988,7 +988,9 @@ static inline void _p1_parse_args(int argc, char **argv) {
  * Los mocks los genera holden: malloc, fopen, fread, fwrite y fclose. El
  * Makefile de la plantilla compila con -DP1_HOLDEN y enlaza los mocks solo
  * cuando holden está instalado y prueba.c usa esta macro; sin holden, el test
- * se saltea con el motivo. Al terminar cada test, todos los mocks se desarman.
+ * se saltea con el motivo. Al terminar cada test, holden_reset() vuelve todos
+ * los mocks al estado inicial (contadores y fallos programados): lo que un test
+ * programa no contamina al siguiente.
  *
  * @code
  * TEST(crear_sin_memoria) {
@@ -1003,8 +1005,13 @@ void holden_fallar_en_fopen(int n);
 void holden_fallar_en_fread(int n);
 void holden_fallar_en_fwrite(int n);
 void holden_fallar_en_fclose(int n);
+void holden_reset(void);
 #define P1_FALLAR_EN(funcion, n) holden_fallar_en_##funcion(n)
+/* holden_reset() restaura todos los mocks (contadores, fallos programados y la semilla de rand); los
+ * fallar_en(0) desarman también con un holden anterior a la Ola 22, cuyo reset sólo ponía los
+ * contadores en cero y dejaba armado el fallo programado por el test anterior. */
 #define _P1_HOLDEN_DESARMAR() do { \
+    holden_reset(); \
     holden_fallar_en_malloc(0); \
     holden_fallar_en_fopen(0); \
     holden_fallar_en_fread(0); \

@@ -25,6 +25,9 @@ jobs:
       - name: Pruebas
         run: make test
 
+      - name: Modo silencioso (líneas P1_FALLO / P1_CRASH)
+        run: make test-silencioso
+
       - name: Pruebas con -DNDEBUG (las aserciones de p1_test no dependen de assert)
         run: make test-ndebug
 

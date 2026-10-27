@@ -388,8 +388,16 @@ static inline int _p1_strcasecmp(const char *s1, const char *s2) {
 
 /* --- Formateo de diagnósticos de fallo ----------------------------------- */
 
+/* En modo silencioso cada fallo deja en stderr una línea para herramientas (vassili la usa para
+ * saber qué aserción mató a un mutante): P1_FALLO<TAB>test<TAB>archivo:línea<TAB>expresión.
+ * Un crash o timeout deja P1_CRASH<TAB>test<TAB>señal. */
+#define _P1_TEST_ACTUAL() (_p1_global_state.current_test_name ? _p1_global_state.current_test_name : "-")
+
 static inline void _p1_print_fail_header(const char *file, int line, const char *assert_expr) {
-    if (_p1_global_state.quiet_mode) return;
+    if (_p1_global_state.quiet_mode) {
+        fprintf(stderr, "P1_FALLO\t%s\t%s:%d\t%s\n", _P1_TEST_ACTUAL(), file, line, assert_expr);
+        return;
+    }
     fprintf(stderr, "\n  %s[FALLO]%s %s:%d: %s%s%s\n",
             _p1_clr(_P1_CLR_RED), _p1_clr(_P1_CLR_RESET), file, line,
             _p1_clr(_P1_CLR_BOLD), assert_expr, _p1_clr(_P1_CLR_RESET));
@@ -740,7 +748,11 @@ static void _p1_signal_handler(int sig) {
     else if (sig == SIGBUS) sig_name = "SIGBUS (Error de bus)";
 #endif
 
-    if (!_p1_global_state.quiet_mode) {
+    if (_p1_global_state.quiet_mode) {
+        const char *corto = sig == SIGSEGV ? "SIGSEGV" : sig == SIGFPE ? "SIGFPE" : sig == SIGALRM ? "SIGALRM"
+                          : sig == SIGILL ? "SIGILL" : "SEÑAL";
+        fprintf(stderr, "P1_CRASH\t%s\t%s\n", _P1_TEST_ACTUAL(), corto);
+    } else {
         fprintf(stderr, "\n  %s[CRASH: %s]%s\n",
                 _p1_clr(_P1_CLR_RED), sig_name, _p1_clr(_P1_CLR_RESET));
         if (_p1_global_state.current_test_name != NULL) {

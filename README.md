@@ -17,7 +17,7 @@ Inspirada conceptualmente en el programa de operaciones de precisión (*The Bour
 * **Control por Línea de Comandos (CLI):**
   * `-k, --filter <texto>`: Ejecuta únicamente los tests cuyo identificador coincida con la subcadena.
   * `-f, --fail-fast`: Detiene la suite inmediatamente tras el primer fallo.
-  * `-q, --quiet`: Salida compacta en una sola línea (`.` para acierto, `F` para fallo, `S` para omitido).
+  * `-q, --quiet`: Salida compacta en una sola línea (`.` para acierto, `F` para fallo, `S` para omitido). Cada fallo deja en stderr `P1_FALLO<TAB>test<TAB>archivo:línea<TAB>aserción` (o `P1_CRASH<TAB>test<TAB>señal`), que vassili usa para saber qué aserción mató a un mutante.
   * `-t, --timeout <seg>`: Configura el tiempo límite en segundos por prueba.
   * `--tap`: Genera salida compatible con Test Anything Protocol v13.
   * `--md-report <ruta>`: Genera un reporte detallado consolidado en formato Markdown (GFM).

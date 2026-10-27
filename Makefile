@@ -25,7 +25,7 @@ LIB_OBJS = $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(LIB_SRCS))
 TEST_SRCS = $(wildcard $(TESTS_DIR)/test_*.c)
 TEST_BINS = $(patsubst $(TESTS_DIR)/%.c, $(BUILD_DIR)/%, $(TEST_SRCS))
 
-.PHONY: all test test-ndebug test-debug test-holden ejemplo-p1_test test-ejemplo run-ejemplo memcheck clean
+.PHONY: all test test-silencioso test-ndebug test-debug test-holden ejemplo-p1_test test-ejemplo run-ejemplo memcheck clean
 
 all: $(LIB_A) $(ROOT_LIB) $(TEST_BINS) $(BUILD_DIR)/prueba
 
@@ -45,7 +45,7 @@ $(ROOT_LIB): $(LIB_A)
 	cp $< $@
 
 # Binarios de tests unitarios enlazados contra la librería estática
-$(BUILD_DIR)/test_%: $(TESTS_DIR)/test_%.c $(LIB_A) | $(BUILD_DIR)
+$(BUILD_DIR)/test_%: $(TESTS_DIR)/test_%.c $(LIB_A) $(wildcard $(INC_DIR)/*.h) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $< -o $@ -L$(BUILD_DIR) -l$(LIB_NAME)
 
 # Binario de prueba general enlazado contra la librería estática
@@ -58,6 +58,19 @@ test: $(TEST_BINS) $(BUILD_DIR)/prueba
 		echo "=== Ejecutando $$bin ==="; \
 		./$$bin; \
 	done
+
+# En modo silencioso cada fallo deja una línea P1_FALLO (o P1_CRASH) en stderr: la usa vassili
+# para saber qué aserción mató a un mutante.
+test-silencioso: $(BUILD_DIR)/test_p1_failures $(BUILD_DIR)/test_p1_signals
+	@echo "=== Líneas estructuradas en modo silencioso ==="
+	@./$(BUILD_DIR)/test_p1_failures -q 2>$(BUILD_DIR)/silencioso.err >/dev/null || true
+	@n=$$(grep -c '^P1_FALLO	' $(BUILD_DIR)/silencioso.err); \
+		test "$$n" -eq 6 || { echo "se esperaban 6 líneas P1_FALLO y hubo $$n"; exit 1; }
+	@grep -q '^P1_FALLO	test_fallo_int_eq	tests/test_p1_failures.c:[0-9]*	ASSERT_INT_EQ(10, 20)$$' $(BUILD_DIR)/silencioso.err \
+		|| { echo "la línea P1_FALLO no trae test, archivo:línea y aserción"; exit 1; }
+	@./$(BUILD_DIR)/test_p1_signals -q 2>&1 >/dev/null | grep -q '^P1_CRASH	test_crash_sigsegv	SIGSEGV$$' \
+		|| { echo "falta la línea P1_CRASH del SIGSEGV"; exit 1; }
+	@echo "ok"
 
 # Ejecutar pruebas con bandera NDEBUG (verificar persistencia de asserts)
 test-ndebug: $(LIB_A) | $(BUILD_DIR)

@@ -53,7 +53,7 @@ Al inicializar la suite con `TEST_SUITE_BEGIN_ARGS("Nombre", argc, argv);`, el b
 | :--- | :--- | :--- |
 | `-k`, `--filter` | `<subcadena>` | Ejecuta únicamente las pruebas cuyo nombre contenga el texto especificado. |
 | `-f`, `--fail-fast` | *(ninguno)* | Detiene la ejecución de la suite tras el primer test que falle. |
-| `-q`, `--quiet` | *(ninguno)* | Modo compacto: emite `.` por acierto, `F` por fallo y `S` por salteado. |
+| `-q`, `--quiet` | *(ninguno)* | Modo compacto: emite `.` por acierto, `F` por fallo y `S` por salteado. Cada fallo deja además en stderr una línea `P1_FALLO<TAB>test<TAB>archivo:línea<TAB>aserción` (o `P1_CRASH<TAB>test<TAB>señal`) para herramientas como vassili. |
 | `-t`, `--timeout` | `<segundos>` | Tiempo límite máximo por test antes de abortar por timeout (por defecto: 5 s; 0 = desactivado). |
 | `--tap` | *(ninguno)* | Emite resultados en formato estándar Test Anything Protocol v13. |
 | `--md-report` | `<ruta>` | Genera un reporte detallado consolidado en formato Markdown (GFM). |
